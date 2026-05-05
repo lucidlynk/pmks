@@ -135,3 +135,101 @@ it('penduduk usia 25 tahun tidak bisa masuk PMKS-02 sampai PMKS-07', function ()
         expect($passed)->toBeFalse("Kategori {$code} seharusnya ditolak untuk usia 25 tahun");
     }
 });
+
+it('PMKS-08 hanya untuk usia 60 tahun ke atas', function () {
+    $rule = PmksAgeRule::getAgeRulesForCategory('PMKS-08');
+    expect($rule['min'])->toBe(60)->and($rule['max'])->toBe(999);
+});
+
+it('penduduk usia 65 tahun bisa masuk PMKS-08', function () {
+    [$village, $user, $batch] = createAgeTestSetup();
+
+    $category = PmksCategory::firstOrCreate(['code' => 'PMKS-08'], ['name' => 'Disabilitas Mental dan Fisik']);
+    $resident  = Resident::create([
+        'village_id'  => $village->id,
+        'nik'         => '5555555555555555',
+        'name'        => 'Lansia Test',
+        'birth_place' => 'Singaraja',
+        'birth_date'  => now()->subYears(65)->format('Y-m-d'),
+        'gender'      => 'L',
+    ]);
+
+    $passed = true;
+    $rule   = new PmksAgeRule($resident->id, $category->id);
+    $rule->validate('category_id', $category->id, function () use (&$passed) {
+        $passed = false;
+    });
+
+    expect($passed)->toBeTrue();
+});
+
+it('penduduk usia 30 tahun tidak bisa masuk PMKS-08', function () {
+    [$village, $user, $batch] = createAgeTestSetup();
+
+    $category = PmksCategory::firstOrCreate(['code' => 'PMKS-08'], ['name' => 'Disabilitas Mental dan Fisik']);
+    $resident  = Resident::create([
+        'village_id'  => $village->id,
+        'nik'         => '6666666666666666',
+        'name'        => 'Dewasa Test',
+        'birth_place' => 'Singaraja',
+        'birth_date'  => now()->subYears(30)->format('Y-m-d'),
+        'gender'      => 'L',
+    ]);
+
+    $passed = true;
+    $rule   = new PmksAgeRule($resident->id, $category->id);
+    $rule->validate('category_id', $category->id, function () use (&$passed) {
+        $passed = false;
+    });
+
+    expect($passed)->toBeFalse();
+});
+
+it('PMKS-23 hanya untuk perempuan', function () {
+    $rule = PmksAgeRule::getGenderRuleForCategory('PMKS-23');
+    expect($rule['gender'])->toBe('P');
+});
+
+it('penduduk perempuan bisa masuk PMKS-23', function () {
+    [$village, $user, $batch] = createAgeTestSetup();
+
+    $category = PmksCategory::firstOrCreate(['code' => 'PMKS-23'], ['name' => 'Fakir Miskin']);
+    $resident  = Resident::create([
+        'village_id'  => $village->id,
+        'nik'         => '7777777777777777',
+        'name'        => 'Wanita Test',
+        'birth_place' => 'Singaraja',
+        'birth_date'  => '1990-01-01',
+        'gender'      => 'P',
+    ]);
+
+    $passed = true;
+    $rule   = new PmksAgeRule($resident->id, $category->id);
+    $rule->validate('category_id', $category->id, function () use (&$passed) {
+        $passed = false;
+    });
+
+    expect($passed)->toBeTrue();
+});
+
+it('penduduk laki-laki tidak bisa masuk PMKS-23', function () {
+    [$village, $user, $batch] = createAgeTestSetup();
+
+    $category = PmksCategory::firstOrCreate(['code' => 'PMKS-23'], ['name' => 'Fakir Miskin']);
+    $resident  = Resident::create([
+        'village_id'  => $village->id,
+        'nik'         => '8888888888888888',
+        'name'        => 'Pria Test',
+        'birth_place' => 'Singaraja',
+        'birth_date'  => '1990-01-01',
+        'gender'      => 'L',
+    ]);
+
+    $passed = true;
+    $rule   = new PmksAgeRule($resident->id, $category->id);
+    $rule->validate('category_id', $category->id, function () use (&$passed) {
+        $passed = false;
+    });
+
+    expect($passed)->toBeFalse();
+});

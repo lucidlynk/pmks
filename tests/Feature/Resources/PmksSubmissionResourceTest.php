@@ -23,20 +23,22 @@ function createSubmissionSetup(): array
         'period_year'  => 2025,
         'status'       => BatchStatus::DRAFT,
     ]);
+
+    // Gunakan PMKS-24 (Keluarga Bermasalah) — tidak ada aturan usia/gender
+    $category = PmksCategory::firstOrCreate(
+        ['code' => 'PMKS-24'],
+        ['name' => 'Keluarga Bermasalah Sosial Psikologis']
+    );
+
+    // Resident laki-laki, usia dewasa — bebas masuk PMKS-24
     $resident = Resident::create([
         'village_id'  => $village->id,
         'nik'         => '5108011234567890',
         'name'        => 'Budi Santoso',
         'birth_place' => 'Singaraja',
-        'birth_date'  => '1990-01-15', // usia ~35 tahun — tidak ada aturan usia
+        'birth_date'  => '1990-01-15',
         'gender'      => 'L',
     ]);
-
-    // Pakai kategori yang TIDAK punya aturan usia (PMKS-23 = Fakir Miskin)
-    $category = PmksCategory::firstOrCreate(
-        ['code' => 'PMKS-23'],
-        ['name' => 'Fakir Miskin']
-    );
 
     return [$kecamatan, $village, $user, $batch, $resident, $category];
 }
@@ -65,12 +67,12 @@ it('dapat membuat data pmks baru', function () {
 it('satu penduduk boleh lebih dari satu kategori pmks dalam satu batch', function () {
     [$kecamatan, $village, $user, $batch, $resident, $category] = createSubmissionSetup();
 
-    // Kategori kedua yang juga tidak punya aturan usia
     $category2 = PmksCategory::firstOrCreate(
         ['code' => 'PMKS-22'],
         ['name' => 'Perempuan Rawan Sosial Ekonomi']
     );
 
+    // Gunakan resident perempuan untuk PMKS-22 jika ada aturan gender
     PmksSubmission::create([
         'batch_id'    => $batch->id,
         'village_id'  => $village->id,
@@ -80,11 +82,16 @@ it('satu penduduk boleh lebih dari satu kategori pmks dalam satu batch', functio
         'status'      => 'draft',
     ]);
 
+    $category3 = PmksCategory::firstOrCreate(
+        ['code' => 'PMKS-21'],
+        ['name' => 'Korban Bencana Sosial']
+    );
+
     PmksSubmission::create([
         'batch_id'    => $batch->id,
         'village_id'  => $village->id,
         'resident_id' => $resident->id,
-        'category_id' => $category2->id,
+        'category_id' => $category3->id,
         'input_by'    => $user->id,
         'status'      => 'draft',
     ]);
