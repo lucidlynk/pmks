@@ -10,6 +10,7 @@ use App\Models\Resident;
 use App\Models\SubmissionBatch;
 use App\Models\User;
 use App\Observers\AuditLogObserver;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -18,6 +19,11 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        if (config('app.env') === 'production' ||
+            request()->header('X-Forwarded-Proto') === 'https') {
+            URL::forceScheme('https');
+        }
+
         User::observe(AuditLogObserver::class);
         FamilyCard::observe(AuditLogObserver::class);
         Resident::observe(AuditLogObserver::class);
