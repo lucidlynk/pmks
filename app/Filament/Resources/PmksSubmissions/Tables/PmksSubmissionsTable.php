@@ -24,11 +24,6 @@ class PmksSubmissionsTable
                     ->searchable()
                     ->sortable(),
 
-                TextColumn::make('village.kecamatan.name')
-                    ->label('Kecamatan')
-                    ->searchable()
-                    ->sortable(),
-
                 TextColumn::make('resident.nik')
                     ->label('NIK')
                     ->searchable(),
@@ -38,10 +33,29 @@ class PmksSubmissionsTable
                     ->searchable()
                     ->sortable(),
 
+                TextColumn::make('resident.gender')
+                    ->label('JK')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'L' => 'info',
+                        'P' => 'danger',
+                        default => 'gray',
+                    })
+                    ->formatStateUsing(fn (string $state): string => $state === 'L' ? 'Laki-laki' : 'Perempuan'),
+
                 TextColumn::make('category.name')
                     ->label('Kategori PMKS')
                     ->searchable()
                     ->wrap(),
+
+                // PERBAIKAN: Hapus visible() sementara untuk memastikan kolom muncul dulu
+                TextColumn::make('disability_types')
+                    ->label('Jenis Disabilitas')
+                    ->badge()
+                    ->separator(',')
+                    ->color('warning')
+                    ->placeholder('Bukan Disabilitas')
+                    ->toggleable(), // Agar bisa di-on/off dari menu tabel
 
                 TextColumn::make('status')
                     ->label('Status')

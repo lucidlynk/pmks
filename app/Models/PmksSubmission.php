@@ -18,6 +18,11 @@ class PmksSubmission extends Model
         'status',
         'notes',
         'input_by',
+        'disability_types',
+    ];
+
+    protected $casts = [
+        'disability_types' => 'array',
     ];
 
     public function batch(): BelongsTo
@@ -43,10 +48,5 @@ class PmksSubmission extends Model
     public function inputBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'input_by');
-    }
-
-    public function scopeDraft($query)
-    {
-        return $query->where('status', 'draft');
     }
 }
