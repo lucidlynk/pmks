@@ -81,10 +81,17 @@ class ResidentForm
             TextInput::make('nik')
                 ->label('NIK')
                 ->required()
-                ->unique(ignoreRecord: true)
                 ->maxLength(16)
                 ->minLength(16)
-                ->placeholder('16 digit NIK'),
+                ->placeholder('16 digit NIK')
+                ->unique(
+                    table: 'residents',
+                    column: 'nik',
+                    ignoreRecord: true,
+                )
+                ->validationMessages([
+                    'unique' => 'NIK ini sudah terdaftar dalam sistem. Setiap penduduk harus memiliki NIK yang unik.',
+                ]),
 
             TextInput::make('name')
                 ->label('Nama Lengkap')

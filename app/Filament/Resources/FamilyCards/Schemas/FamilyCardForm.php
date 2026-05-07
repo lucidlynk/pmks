@@ -10,12 +10,13 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class FamilyCardForm
 {
     public static function configure(Schema $schema): Schema
     {
-        $user = Auth::user();
+        $user           = Auth::user();
         $isOperatorDesa = $user?->isOperatorDesa();
 
         return $schema->components([
@@ -55,10 +56,17 @@ class FamilyCardForm
             TextInput::make('no_kk')
                 ->label('Nomor KK')
                 ->required()
-                ->unique(ignoreRecord: true)
                 ->maxLength(16)
                 ->minLength(16)
-                ->placeholder('16 digit nomor KK'),
+                ->placeholder('16 digit nomor KK')
+                ->unique(
+                    table: 'family_cards',
+                    column: 'no_kk',
+                    ignoreRecord: true,
+                )
+                ->validationMessages([
+                    'unique' => 'Nomor KK ini sudah terdaftar dalam sistem. Satu nomor KK tidak boleh ganda.',
+                ]),
 
             TextInput::make('kepala_keluarga')
                 ->label('Nama Kepala Keluarga')
