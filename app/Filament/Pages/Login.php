@@ -17,7 +17,9 @@ class Login extends BaseLogin
 {
     use WithRateLimiting;
 
-    private const MAX_ATTEMPTS  = 5;
+    // Set ke 4 agar user bisa salah 3 kali berturut-turut. 
+    // Percobaan ke-4 yang akan memicu "TooManyRequestsException".
+    private const MAX_ATTEMPTS  = 4; 
     private const DECAY_SECONDS = 900; // 15 menit
 
     public function authenticate(): ?LoginResponse
@@ -25,6 +27,7 @@ class Login extends BaseLogin
         $email = data_get($this->form->getState(), 'email', '');
 
         try {
+            // Ini akan membolehkan 3 kali eksekusi, dan throw exception pada yang ke-4
             $this->rateLimit(self::MAX_ATTEMPTS, self::DECAY_SECONDS);
         } catch (TooManyRequestsException $exception) {
             $minutes = ceil($exception->secondsUntilAvailable / 60);
@@ -32,13 +35,14 @@ class Login extends BaseLogin
             AuditLogService::logLogin(false, $email);
 
             Notification::make()
-                ->title('Terlalu banyak percobaan login')
-                ->body("Akun dikunci sementara. Coba lagi dalam {$minutes} menit.")
+                ->title('Akun Terkunci')
+                ->body("Anda telah salah 3 kali berturut-turut. Silakan coba lagi dalam {$minutes} menit.")
                 ->danger()
+                ->persistent()
                 ->send();
 
             throw ValidationException::withMessages([
-                'data.email' => "Terlalu banyak percobaan. Coba lagi dalam {$minutes} menit.",
+                'data.email' => "Batas percobaan habis. Tunggu {$minutes} menit.",
             ]);
         }
 
@@ -54,15 +58,17 @@ class Login extends BaseLogin
             return $response;
 
         } catch (ValidationException $e) {
-            Cache::put($key, $attempts + 1, self::DECAY_SECONDS);
+            $newAttempts = $attempts + 1;
+            Cache::put($key, $newAttempts, self::DECAY_SECONDS);
             AuditLogService::logLogin(false, $email);
 
-            $remaining = self::MAX_ATTEMPTS - ($attempts + 1);
+            // Hitung sisa toleransi untuk user (3 - jumlah salah)
+            $remainingToleransi = 3 - $newAttempts;
 
-            if ($remaining > 0 && $remaining <= 3) {
+            if ($remainingToleransi > 0) {
                 Notification::make()
-                    ->title('Login gagal')
-                    ->body("Sisa percobaan: {$remaining} kali sebelum akun dikunci.")
+                    ->title('Login Gagal')
+                    ->body("Email atau password salah. Sisa kesempatan: {$remainingToleransi} kali.")
                     ->warning()
                     ->send();
             }
