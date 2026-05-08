@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\PsksSubmissions;
 
-use App\Enums\UserRole;
 use App\Filament\Resources\PsksSubmissions\Pages\CreatePsksSubmission;
 use App\Filament\Resources\PsksSubmissions\Pages\EditPsksSubmission;
 use App\Filament\Resources\PsksSubmissions\Pages\ListPsksSubmissions;
@@ -23,7 +22,6 @@ class PsksSubmissionResource extends Resource
     protected static ?string $pluralModelLabel = 'Data PSKS';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingLibrary;
 
-    // Semua role bisa akses (Verifikator hanya lihat)
     public static function canAccess(): bool
     {
         return auth()->check();
@@ -45,12 +43,18 @@ class PsksSubmissionResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
-        $user  = auth()->user();
-        if ($user?->isOperatorDesa() && $user->village_id) {
-            $query->where('village_id', $user->village_id);
-        }
-        return $query;
+        return parent::getEloquentQuery()
+            ->with([
+                'batch',
+                'village.kecamatan',
+                'category',
+                'subject',  // MorphTo — eager load Resident atau Institution sekaligus
+                'inputBy',
+            ])
+            ->when(
+                auth()->user()?->isOperatorDesa() && auth()->user()->village_id,
+                fn ($q) => $q->where('village_id', auth()->user()->village_id)
+            );
     }
 
     public static function getPages(): array

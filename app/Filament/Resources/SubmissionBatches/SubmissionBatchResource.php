@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\SubmissionBatches;
 
-use App\Enums\UserRole;
 use App\Filament\Resources\SubmissionBatches\Pages\CreateSubmissionBatch;
 use App\Filament\Resources\SubmissionBatches\Pages\EditSubmissionBatch;
 use App\Filament\Resources\SubmissionBatches\Pages\ListSubmissionBatches;
@@ -24,7 +23,6 @@ class SubmissionBatchResource extends Resource
     protected static ?string $pluralModelLabel = 'Data Pengajuan';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
 
-    // Semua role bisa akses (dengan scope berbeda)
     public static function canAccess(): bool
     {
         return auth()->check();
@@ -46,12 +44,17 @@ class SubmissionBatchResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
-        $user  = auth()->user();
-        if ($user?->isOperatorDesa() && $user->village_id) {
-            $query->where('village_id', $user->village_id);
-        }
-        return $query;
+        return parent::getEloquentQuery()
+            ->with([
+                'village.kecamatan',
+                'submittedBy',
+                'verifiedBy',
+                'approvedBy',
+            ])
+            ->when(
+                auth()->user()?->isOperatorDesa() && auth()->user()->village_id,
+                fn ($q) => $q->where('village_id', auth()->user()->village_id)
+            );
     }
 
     public static function getPages(): array

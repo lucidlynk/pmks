@@ -22,6 +22,12 @@ class PsksSubmission extends Model
         'input_by',
     ];
 
+    // Map nilai 'person'/'institution' ke class Eloquent yang benar
+    protected $morphMap = [
+        'person'      => Resident::class,
+        'institution' => Institution::class,
+    ];
+
     public function batch(): BelongsTo
     {
         return $this->belongsTo(SubmissionBatch::class, 'batch_id');
@@ -37,13 +43,10 @@ class PsksSubmission extends Model
         return $this->belongsTo(PsksCategory::class, 'category_id');
     }
 
-    public function subject(): Resident|Institution|null
+    // Ganti manual find() dengan MorphTo yang bisa di-eager load
+    public function subject(): MorphTo
     {
-        if ($this->subject_type === 'person') {
-            return Resident::find($this->subject_id);
-        }
-
-        return Institution::find($this->subject_id);
+        return $this->morphTo(__FUNCTION__, 'subject_type', 'subject_id');
     }
 
     public function inputBy(): BelongsTo

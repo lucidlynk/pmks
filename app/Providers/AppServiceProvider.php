@@ -10,6 +10,7 @@ use App\Models\Resident;
 use App\Models\SubmissionBatch;
 use App\Models\User;
 use App\Observers\AuditLogObserver;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -23,6 +24,12 @@ class AppServiceProvider extends ServiceProvider
             request()->header('X-Forwarded-Proto') === 'https') {
             URL::forceScheme('https');
         }
+
+        // Map string 'person'/'institution' di DB ke class Eloquent yang benar
+        Relation::morphMap([
+            'person'      => Resident::class,
+            'institution' => Institution::class,
+        ]);
 
         User::observe(AuditLogObserver::class);
         FamilyCard::observe(AuditLogObserver::class);

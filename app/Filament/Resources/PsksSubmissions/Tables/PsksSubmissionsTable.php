@@ -47,14 +47,9 @@ class PsksSubmissionsTable
                         default       => $state,
                     }),
 
-                TextColumn::make('subject_name')
+                // Pakai relasi MorphTo, tidak lagi manual find()
+                TextColumn::make('subject.name')
                     ->label('Nama Subjek')
-                    ->getStateUsing(function ($record) {
-                        if ($record->subject_type === 'person') {
-                            return $record->subject()?->name ?? '-';
-                        }
-                        return $record->subject()?->name ?? '-';
-                    })
                     ->searchable(false),
 
                 TextColumn::make('status')

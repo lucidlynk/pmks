@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\PmksSubmissions;
 
-use App\Enums\UserRole;
 use App\Filament\Resources\PmksSubmissions\Pages\CreatePmksSubmission;
 use App\Filament\Resources\PmksSubmissions\Pages\EditPmksSubmission;
 use App\Filament\Resources\PmksSubmissions\Pages\ListPmksSubmissions;
@@ -23,7 +22,6 @@ class PmksSubmissionResource extends Resource
     protected static ?string $pluralModelLabel = 'Data PMKS';
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUserGroup;
 
-    // Semua role bisa akses (Verifikator hanya lihat)
     public static function canAccess(): bool
     {
         return auth()->check();
@@ -45,12 +43,12 @@ class PmksSubmissionResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery();
-        $user  = auth()->user();
-        if ($user?->isOperatorDesa() && $user->village_id) {
-            $query->where('village_id', $user->village_id);
-        }
-        return $query;
+        return parent::getEloquentQuery()
+            ->with(['batch', 'village', 'resident', 'category', 'inputBy'])
+            ->when(
+                auth()->user()?->isOperatorDesa() && auth()->user()->village_id,
+                fn ($q) => $q->where('village_id', auth()->user()->village_id)
+            );
     }
 
     public static function getPages(): array
