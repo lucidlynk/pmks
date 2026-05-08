@@ -8,16 +8,19 @@ use App\Models\PmksCategory;
 use App\Models\Resident;
 use App\Models\SubmissionBatch;
 use App\Models\Village;
+use App\Rules\DisabilityTypesRule;
 use App\Rules\PmksAgeRule;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\CheckboxList;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
 
 class PmksSubmissionForm
 {
+    private const DISABILITY_CATEGORY_IDS = [5, 9];
+
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([
@@ -132,25 +135,31 @@ class PmksSubmissionForm
                     $category = PmksCategory::find($categoryId);
                     if (!$category) return null;
 
-                    $rule = \App\Rules\PmksAgeRule::getRulesForCategory($category->code);
-                    if (!$rule) return null;
+                    $hints = [];
+                    if ($category->hasAgeRestriction()) {
+                        $hints[] = "Usia: {$category->ageLabel()}";
+                    }
+                    if ($category->hasGenderRestriction()) {
+                        $hints[] = "Gender: {$category->genderLabel()}";
+                    }
 
-                    return "Kategori ini hanya untuk usia {$rule['label']}";
+                    return count($hints) ? implode(' · ', $hints) : null;
                 }),
 
-            // INPUT BARU: Muncul hanya untuk ID 5 (Anak Disabilitas) dan 9 (Penyandang Disabilitas)
             CheckboxList::make('disability_types')
                 ->label('Jenis Disabilitas')
                 ->options([
-                    'fisik' => 'Fisik',
+                    'fisik'       => 'Fisik',
                     'intelektual' => 'Intelektual',
-                    'mental' => 'Mental',
-                    'sensorik' => 'Sensorik',
+                    'mental'      => 'Mental',
+                    'sensorik'    => 'Sensorik',
                 ])
                 ->columns(2)
                 ->gridDirection('row')
-                ->required()
-                ->visible(fn (callable $get) => in_array($get('category_id'), [5, 9])),
+                ->rules(fn (callable $get) => [
+                    new DisabilityTypesRule(categoryId: $get('category_id')),
+                ])
+                ->visible(fn (callable $get) => in_array($get('category_id'), self::DISABILITY_CATEGORY_IDS)),
 
             Textarea::make('notes')
                 ->label('Catatan')

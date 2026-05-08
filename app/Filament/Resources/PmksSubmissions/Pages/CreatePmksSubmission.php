@@ -3,14 +3,9 @@
 namespace App\Filament\Resources\PmksSubmissions\Pages;
 
 use App\Filament\Resources\PmksSubmissions\PmksSubmissionResource;
-use App\Models\PmksCategory;
-use App\Models\Resident;
 use App\Models\SubmissionBatch;
-use App\Rules\PmksAgeRule;
-use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ValidationException;
 
 class CreatePmksSubmission extends CreateRecord
 {
@@ -32,32 +27,5 @@ class CreatePmksSubmission extends CreateRecord
         }
 
         return $data;
-    }
-
-    protected function beforeCreate(): void
-    {
-        $residentId = $this->data['resident_id'] ?? null;
-        $categoryId = $this->data['category_id'] ?? null;
-
-        if (!$residentId || !$categoryId) return;
-
-        $resident = Resident::find($residentId);
-        $category = PmksCategory::find($categoryId);
-
-        if (!$resident || !$category) return;
-
-        $rule = PmksAgeRule::getRulesForCategory($category->code);
-        if (!$rule) return;
-
-        $age = $resident->birth_date->age;
-
-        if ($age < $rule['min'] || $age > $rule['max']) {
-            $this->halt();
-            Notification::make()
-                ->title('Usia tidak sesuai kategori')
-                ->body("Kategori {$category->name} hanya untuk usia {$rule['label']}. Penduduk ini berusia {$age} tahun.")
-                ->danger()
-                ->send();
-        }
     }
 }

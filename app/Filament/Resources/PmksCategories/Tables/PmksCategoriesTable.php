@@ -27,6 +27,22 @@ class PmksCategoriesTable
                     ->searchable()
                     ->wrap(),
 
+                TextColumn::make('age_range')
+                    ->label('Batasan Usia')
+                    ->getStateUsing(fn ($record) => $record->ageLabel())
+                    ->badge()
+                    ->color('info'),
+
+                TextColumn::make('gender_restriction')
+                    ->label('Gender')
+                    ->getStateUsing(fn ($record) => $record->genderLabel())
+                    ->badge()
+                    ->color(fn ($record) => match($record->gender_restriction) {
+                        'L'     => 'info',
+                        'P'     => 'danger',
+                        default => 'gray',
+                    }),
+
                 TextColumn::make('description')
                     ->label('Deskripsi')
                     ->limit(50)
