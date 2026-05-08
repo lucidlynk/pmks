@@ -10,7 +10,12 @@ class SubmissionBatchPolicy
 {
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->hasAnyRole([
+            UserRole::ADMIN_DINSOS->value,
+            UserRole::VERIFIKATOR->value,
+            UserRole::OPERATOR_BIDANG->value,
+            UserRole::OPERATOR_DESA->value,
+        ]);
     }
 
     public function view(User $user, SubmissionBatch $batch): bool
@@ -19,7 +24,6 @@ class SubmissionBatchPolicy
         if ($user->hasRole(UserRole::VERIFIKATOR->value)) return true;
         if ($user->hasRole(UserRole::OPERATOR_BIDANG->value)) return true;
 
-        // Operator Desa hanya bisa lihat batch desanya
         if ($user->isOperatorDesa()) {
             return $user->village_id === $batch->village_id;
         }

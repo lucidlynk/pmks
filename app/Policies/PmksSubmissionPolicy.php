@@ -10,7 +10,12 @@ class PmksSubmissionPolicy
 {
     public function viewAny(User $user): bool
     {
-        return true;
+        return $user->hasAnyRole([
+            UserRole::ADMIN_DINSOS->value,
+            UserRole::VERIFIKATOR->value,
+            UserRole::OPERATOR_BIDANG->value,
+            UserRole::OPERATOR_DESA->value,
+        ]);
     }
 
     public function view(User $user, PmksSubmission $submission): bool

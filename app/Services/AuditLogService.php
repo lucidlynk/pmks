@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Request;
 
 class AuditLogService
 {
+    private const SENSITIVE_FIELDS = ['password', 'remember_token', 'two_factor_secret'];
+
     public static function log(
         string $action,
         ?Model $model = null,
@@ -21,11 +23,16 @@ class AuditLogService
             'action'     => $action,
             'model_type' => $model ? get_class($model) : null,
             'model_id'   => $model?->getKey(),
-            'old_values' => $oldValues,
-            'new_values' => $newValues,
+            'old_values' => $oldValues ? static::sanitize($oldValues) : null,
+            'new_values' => $newValues ? static::sanitize($newValues) : null,
             'ip_address' => Request::ip(),
             'user_agent' => Request::userAgent(),
         ]);
+    }
+
+    private static function sanitize(array $values): array
+    {
+        return array_diff_key($values, array_flip(self::SENSITIVE_FIELDS));
     }
 
     public static function logLogin(bool $success, string $email): void
@@ -57,7 +64,8 @@ class AuditLogService
             action: 'update',
             model: $model,
             oldValues: $oldValues,
-            newValues: $model->toArray(),
+            // Hanya simpan field yang benar-benar berubah
+            newValues: array_intersect_key($model->toArray(), $oldValues),
         );
     }
 
