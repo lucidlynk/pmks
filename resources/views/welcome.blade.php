@@ -414,19 +414,19 @@
 <!-- STATS -->
 <div class="stats-bar">
     <div class="stat-item">
-        <div class="stat-number">9</div>
+        <div class="stat-number">{{ $totalKecamatan }}</div>
         <div class="stat-label">Kecamatan</div>
     </div>
     <div class="stat-item">
-        <div class="stat-number">114</div>
+        <div class="stat-number">{{ $totalDesa }}</div>
         <div class="stat-label">Desa / Kelurahan</div>
     </div>
     <div class="stat-item">
-        <div class="stat-number">24</div>
+        <div class="stat-number">{{ $pmksCategories->count() }}</div>
         <div class="stat-label">Kategori PMKS</div>
     </div>
     <div class="stat-item">
-        <div class="stat-number">12</div>
+        <div class="stat-number">{{ $psksCategories->count() }}</div>
         <div class="stat-label">Kategori PSKS</div>
     </div>
     <div class="stat-item">
@@ -512,82 +512,47 @@
     <!-- KATEGORI PMKS -->
     <div id="pmks" style="margin-bottom:48px;">
         <div class="section-title">Kategori PMKS</div>
-        <div class="section-subtitle">24 kategori Penyandang Masalah Kesejahteraan Sosial sesuai standar Kemensos RI</div>
+        <div class="section-subtitle">{{ $pmksCategories->count() }} kategori Penyandang Masalah Kesejahteraan Sosial sesuai standar Kemensos RI</div>
         <div class="kategori-grid">
-            @php
-            $pmks = [
-                ['PMKS-01', 'Kemiskinan', '0-5 tahun'],
-                ['PMKS-02', 'Keterlantaran Anak', '6-18 tahun'],
-                ['PMKS-03', 'Keterlantaran Lansia', '6-18 tahun'],
-                ['PMKS-04', 'Disabilitas Fisik', '6-18 tahun'],
-                ['PMKS-05', 'Disabilitas Mental', '6-18 tahun'],
-                ['PMKS-06', 'Disabilitas Sensorik Netra', '6-18 tahun'],
-                ['PMKS-07', 'Disabilitas Rungu Wicara', '6-18 tahun'],
-                ['PMKS-08', 'Disabilitas Mental & Fisik', '60+ tahun'],
-                ['PMKS-09', 'Tuna Susila', null],
-                ['PMKS-10', 'Gelandangan', null],
-                ['PMKS-11', 'Pengemis', null],
-                ['PMKS-12', 'Pemulung', null],
-                ['PMKS-13', 'Kelompok Minoritas', null],
-                ['PMKS-14', 'Bekas Napi', null],
-                ['PMKS-15', 'Orang dengan HIV/AIDS', null],
-                ['PMKS-16', 'Korban NAPZA', null],
-                ['PMKS-17', 'Korban Trafficking', null],
-                ['PMKS-18', 'Korban Kekerasan', null],
-                ['PMKS-19', 'Pekerja Migran Bermasalah', null],
-                ['PMKS-20', 'Korban Bencana Alam', null],
-                ['PMKS-21', 'Korban Bencana Sosial', null],
-                ['PMKS-22', 'Perempuan Rawan Sosial', null],
-                ['PMKS-23', 'Fakir Miskin', 'Perempuan'],
-                ['PMKS-24', 'Keluarga Bermasalah Psikologis', null],
-            ];
-            @endphp
-            @foreach($pmks as [$kode, $nama, $aturan])
+            @forelse($pmksCategories as $kategori)
             <div class="kategori-item">
-                <div class="kode">{{ $kode }}</div>
-                <div class="nama">{{ $nama }}</div>
-                @if($aturan)
-                <span class="aturan">{{ $aturan }}</span>
+                <div class="kode">{{ $kategori->code }}</div>
+                <div class="nama">{{ $kategori->name }}</div>
+                @if($kategori->hasAgeRestriction())
+                    <span class="aturan">{{ $kategori->ageLabel() }}</span>
+                @endif
+                @if($kategori->hasGenderRestriction())
+                    <span class="aturan" style="background:#fdf4ff;color:#7e22ce;">{{ $kategori->genderLabel() }}</span>
                 @endif
             </div>
-            @endforeach
+            @empty
+            <div style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:24px;">
+                Belum ada kategori PMKS yang aktif.
+            </div>
+            @endforelse
         </div>
     </div>
 
     <!-- KATEGORI PSKS -->
     <div id="psks" style="margin-bottom:48px;">
         <div class="section-title">Kategori PSKS</div>
-        <div class="section-subtitle">12 kategori Potensi Sumber Kesejahteraan Sosial</div>
+        <div class="section-subtitle">{{ $psksCategories->count() }} kategori Potensi Sumber Kesejahteraan Sosial</div>
         <div class="kategori-grid">
-            @php
-            $psks = [
-                ['PSKS-J-01', 'Pekerja Sosial Masyarakat (PSM)', 'Individu'],
-                ['PSKS-J-02', 'TKSK', 'Individu'],
-                ['PSKS-J-03', 'Relawan Sosial', 'Individu'],
-                ['PSKS-J-04', 'Penyuluh Sosial', 'Individu'],
-                ['PSKS-J-05', 'Tagana', 'Individu'],
-                ['PSKS-J-06', 'Wanita Pemimpin Kesos', 'Individu'],
-                ['PSKS-L-01', 'Karang Taruna', 'Lembaga'],
-                ['PSKS-L-02', 'LKS', 'Lembaga'],
-                ['PSKS-L-03', 'LK3', 'Lembaga'],
-                ['PSKS-L-04', 'LKSA', 'Lembaga'],
-                ['PSKS-L-05', 'PKK', 'Lembaga'],
-                ['PSKS-L-06', 'Organisasi Sosial', 'Lembaga'],
-            ];
-            @endphp
-            @foreach($psks as [$kode, $nama, $jenis])
-            <div class="kategori-item" style="border-left-color: {{ str_contains($kode, '-J-') ? '#10b981' : '#8b5cf6' }}">
-                <div class="kode">{{ $kode }}</div>
-                <div class="nama">{{ $nama }}</div>
-                <span class="aturan" style="background: {{ str_contains($kode, '-J-') ? '#f0fdf4' : '#faf5ff' }}; color: {{ str_contains($kode, '-J-') ? '#065f46' : '#5b21b6' }}">
-                    {{ $jenis }}
+            @forelse($psksCategories as $kategori)
+            <div class="kategori-item" style="border-left-color: {{ $kategori->subject_type === 'person' ? '#10b981' : '#8b5cf6' }}">
+                <div class="kode">{{ $kategori->code }}</div>
+                <div class="nama">{{ $kategori->name }}</div>
+                <span class="aturan" style="background: {{ $kategori->subject_type === 'person' ? '#f0fdf4' : '#faf5ff' }}; color: {{ $kategori->subject_type === 'person' ? '#065f46' : '#5b21b6' }}">
+                    {{ $kategori->subject_type === 'person' ? 'Individu' : 'Lembaga' }}
                 </span>
             </div>
-            @endforeach
+            @empty
+            <div style="grid-column:1/-1;text-align:center;color:#94a3b8;padding:24px;">
+                Belum ada kategori PSKS yang aktif.
+            </div>
+            @endforelse
         </div>
     </div>
-
-</main>
 
 <!-- FOOTER -->
 <footer>
