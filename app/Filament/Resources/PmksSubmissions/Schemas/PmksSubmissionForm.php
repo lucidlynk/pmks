@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\PmksSubmissions\Schemas;
 
 use App\Enums\BatchStatus;
+use App\Models\FamilyCard;
 use App\Models\Kecamatan;
 use App\Models\PmksCategory;
 use App\Models\Resident;
@@ -11,8 +12,10 @@ use App\Models\Village;
 use App\Rules\DisabilityTypesRule;
 use App\Rules\PmksAgeRule;
 use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
@@ -112,7 +115,98 @@ class PmksSubmissionForm
                     return !$get('village_id');
                 })
                 ->placeholder('Cari NIK atau nama penduduk')
-                ->afterStateUpdated(fn (callable $set) => $set('category_id', null)),
+                ->afterStateUpdated(fn (callable $set) => $set('category_id', null))
+                // ── SHORTCUT: tambah penduduk baru langsung dari form ──
+                ->createOptionForm(function (callable $get) {
+                    $user      = Auth::user();
+                    $villageId = $user?->isOperatorDesa()
+                        ? $user->village_id
+                        : $get('village_id');
+
+                    return [
+                        TextInput::make('nik')
+                            ->label('NIK')
+                            ->required()
+                            ->maxLength(16)
+                            ->minLength(16)
+                            ->placeholder('16 digit NIK')
+                            ->unique('residents', 'nik')
+                            ->validationMessages([
+                                'unique' => 'NIK ini sudah terdaftar dalam sistem.',
+                            ]),
+
+                        TextInput::make('name')
+                            ->label('Nama Lengkap')
+                            ->required()
+                            ->maxLength(255),
+
+                        TextInput::make('birth_place')
+                            ->label('Tempat Lahir')
+                            ->required()
+                            ->maxLength(255),
+
+                        DatePicker::make('birth_date')
+                            ->label('Tanggal Lahir')
+                            ->required()
+                            ->maxDate(now()),
+
+                        Select::make('gender')
+                            ->label('Jenis Kelamin')
+                            ->options(['L' => 'Laki-laki', 'P' => 'Perempuan'])
+                            ->required(),
+
+                        Select::make('family_card_id')
+                            ->label('Kartu Keluarga (No. KK)')
+                            ->searchable()
+                            ->nullable()
+                            ->options(function () use ($villageId) {
+                                if (!$villageId) return [];
+                                return FamilyCard::active()
+                                    ->where('village_id', $villageId)
+                                    ->pluck('no_kk', 'id');
+                            })
+                            ->placeholder('Pilih KK (opsional)'),
+
+                        Select::make('status_hubungan')
+                            ->label('Status Hubungan dalam KK')
+                            ->options([
+                                'kepala_keluarga' => 'Kepala Keluarga',
+                                'istri'           => 'Istri',
+                                'anak'            => 'Anak',
+                                'orang_tua'       => 'Orang Tua',
+                                'lainnya'         => 'Lainnya',
+                            ])
+                            ->nullable(),
+
+                        TextInput::make('phone')
+                            ->label('Nomor HP')
+                            ->nullable()
+                            ->maxLength(20)
+                            ->tel(),
+                    ];
+                })
+                ->createOptionUsing(function (array $data, callable $get) {
+                    $user      = Auth::user();
+                    $villageId = $user?->isOperatorDesa()
+                        ? $user->village_id
+                        : $get('village_id');
+
+                    $resident = Resident::create([
+                        'village_id'       => $villageId,
+                        'nik'              => $data['nik'],
+                        'name'             => $data['name'],
+                        'birth_place'      => $data['birth_place'],
+                        'birth_date'       => $data['birth_date'],
+                        'gender'           => $data['gender'],
+                        'family_card_id'   => $data['family_card_id'] ?? null,
+                        'status_hubungan'  => $data['status_hubungan'] ?? null,
+                        'phone'            => $data['phone'] ?? null,
+                        'is_active'        => true,
+                    ]);
+
+                    return $resident->id;
+                })
+                ->createOptionModalHeading('Tambah Penduduk Baru'),
 
             Select::make('category_id')
                 ->label('Kategori PMKS')
