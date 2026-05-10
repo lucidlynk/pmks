@@ -96,16 +96,32 @@ class SubmissionBatchesTable
                         ->visible(fn () => auth()->user()?->hasRole(UserRole::ADMIN_DINSOS->value))
                         ->deselectRecordsAfterCompletion()
                         ->before(function ($records, $action) {
-                            // Hanya batch DRAFT yang boleh dihapus
-                            $notDraft = $records->filter(
-                                fn ($r) => !in_array($r->status, [BatchStatus::DRAFT, BatchStatus::REJECTED, BatchStatus::REVISION_REQUESTED, BatchStatus::REVISED])
+                            // Double check: hanya Admin Dinsos
+                            if (!auth()->user()?->hasRole(UserRole::ADMIN_DINSOS->value)) {
+                                $action->cancel();
+                                Notification::make()
+                                    ->title('Akses ditolak')
+                                    ->body('Hanya Admin Dinsos yang dapat menghapus data pengajuan.')
+                                    ->danger()
+                                    ->send();
+                                return;
+                            }
+
+                            // Hanya status yang belum diproses Dinsos
+                            $notAllowed = $records->filter(
+                                fn ($r) => !in_array($r->status, [
+                                    BatchStatus::DRAFT,
+                                    BatchStatus::REJECTED,
+                                    BatchStatus::REVISION_REQUESTED,
+                                    BatchStatus::REVISED,
+                                ])
                             );
 
-                            if ($notDraft->isNotEmpty()) {
+                            if ($notAllowed->isNotEmpty()) {
                                 $action->cancel();
                                 Notification::make()
                                     ->title('Tidak dapat menghapus')
-                                    ->body('Hanya batch berstatus Draft yang bisa dihapus. Batch yang sudah diajukan atau disetujui tidak dapat dihapus.')
+                                    ->body('Batch yang sudah diajukan, diverifikasi, atau disetujui tidak dapat dihapus.')
                                     ->danger()
                                     ->send();
                             }

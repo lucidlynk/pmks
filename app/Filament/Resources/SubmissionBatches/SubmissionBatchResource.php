@@ -28,6 +28,12 @@ class SubmissionBatchResource extends Resource
         return auth()->check();
     }
 
+    // Hanya Admin Dinsos yang bisa melihat checkbox bulk delete
+    public static function canDeleteAny(): bool
+    {
+        return auth()->user()?->hasRole('admin_dinsos') ?? false;
+    }
+
     public static function getNavigationLabel(): string { return 'Data Pengajuan'; }
     public static function getNavigationGroup(): string { return 'Pengajuan PMKS & PSKS'; }
     public static function getNavigationSort(): ?int { return 1; }
