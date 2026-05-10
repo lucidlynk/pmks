@@ -56,7 +56,14 @@ class SubmissionBatchPolicy
 
     public function delete(User $user, SubmissionBatch $batch): bool
     {
-        if (!$batch->isDraft()) return false;
-        return $user->isAdminDinsos();
+        if (!$user->isAdminDinsos()) return false;
+
+        // Hanya bisa hapus jika batch belum diproses Dinsos
+        return in_array($batch->status, [
+            \App\Enums\BatchStatus::DRAFT,
+            \App\Enums\BatchStatus::REJECTED,
+            \App\Enums\BatchStatus::REVISION_REQUESTED,
+            \App\Enums\BatchStatus::REVISED,
+        ]);
     }
 }
