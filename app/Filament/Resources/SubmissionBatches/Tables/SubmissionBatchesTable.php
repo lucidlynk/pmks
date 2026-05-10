@@ -3,10 +3,12 @@
 namespace App\Filament\Resources\SubmissionBatches\Tables;
 
 use App\Enums\BatchStatus;
+use App\Enums\UserRole;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -89,7 +91,25 @@ class SubmissionBatchesTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()
+                        // Hanya tampil untuk Admin Dinsos
+                        ->visible(fn () => auth()->user()?->hasRole(UserRole::ADMIN_DINSOS->value))
+                        ->deselectRecordsAfterCompletion()
+                        ->before(function ($records, $action) {
+                            // Hanya batch DRAFT yang boleh dihapus
+                            $notDraft = $records->filter(
+                                fn ($r) => !in_array($r->status, [BatchStatus::DRAFT, BatchStatus::REJECTED, BatchStatus::REVISION_REQUESTED, BatchStatus::REVISED])
+                            );
+
+                            if ($notDraft->isNotEmpty()) {
+                                $action->cancel();
+                                Notification::make()
+                                    ->title('Tidak dapat menghapus')
+                                    ->body('Hanya batch berstatus Draft yang bisa dihapus. Batch yang sudah diajukan atau disetujui tidak dapat dihapus.')
+                                    ->danger()
+                                    ->send();
+                            }
+                        }),
                 ]),
             ])
             ->defaultSort('period_year', 'desc');
