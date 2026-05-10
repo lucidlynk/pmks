@@ -15,7 +15,6 @@ class CreatePmksSubmission extends CreateRecord
     {
         $user = Auth::user();
         $data['input_by'] = $user->id;
-        $data['status']   = 'draft';
 
         if (empty($data['village_id']) && !empty($data['batch_id'])) {
             $batch = SubmissionBatch::find($data['batch_id']);

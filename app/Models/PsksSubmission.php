@@ -17,16 +17,30 @@ class PsksSubmission extends Model
         'category_id',
         'subject_type',
         'subject_id',
-        'status',
         'notes',
         'input_by',
     ];
 
-    // Map nilai 'person'/'institution' ke class Eloquent yang benar
     protected $morphMap = [
         'person'      => Resident::class,
         'institution' => Institution::class,
     ];
+
+    // Derive status dari batch induk
+    public function getStatusAttribute(): string
+    {
+        return $this->batch?->status->value ?? 'draft';
+    }
+
+    public function getStatusLabelAttribute(): string
+    {
+        return $this->batch?->status->label() ?? 'Draft';
+    }
+
+    public function getStatusColorAttribute(): string
+    {
+        return $this->batch?->status->color() ?? 'gray';
+    }
 
     public function batch(): BelongsTo
     {
@@ -43,7 +57,6 @@ class PsksSubmission extends Model
         return $this->belongsTo(PsksCategory::class, 'category_id');
     }
 
-    // Ganti manual find() dengan MorphTo yang bisa di-eager load
     public function subject(): MorphTo
     {
         return $this->morphTo(__FUNCTION__, 'subject_type', 'subject_id');
@@ -52,10 +65,5 @@ class PsksSubmission extends Model
     public function inputBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'input_by');
-    }
-
-    public function scopeDraft($query)
-    {
-        return $query->where('status', 'draft');
     }
 }

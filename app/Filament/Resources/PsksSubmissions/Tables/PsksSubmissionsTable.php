@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\PsksSubmissions\Tables;
 
+use App\Enums\BatchStatus;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -47,21 +48,16 @@ class PsksSubmissionsTable
                         default       => $state,
                     }),
 
-                // Pakai relasi MorphTo, tidak lagi manual find()
                 TextColumn::make('subject.name')
                     ->label('Nama Subjek')
                     ->searchable(false),
 
-                TextColumn::make('status')
-                    ->label('Status')
+                // Status derive dari batch
+                TextColumn::make('batch.status')
+                    ->label('Status Batch')
                     ->badge()
-                    ->color(fn (string $state) => match ($state) {
-                        'draft'     => 'gray',
-                        'submitted' => 'info',
-                        'approved'  => 'success',
-                        'rejected'  => 'danger',
-                        default     => 'gray',
-                    }),
+                    ->formatStateUsing(fn ($state) => $state instanceof BatchStatus ? $state->label() : '-')
+                    ->color(fn ($state) => $state instanceof BatchStatus ? $state->color() : 'gray'),
 
                 TextColumn::make('created_at')
                     ->label('Tgl Input')
@@ -84,6 +80,15 @@ class PsksSubmissionsTable
                 SelectFilter::make('village_id')
                     ->label('Desa')
                     ->relationship('village', 'name'),
+
+                SelectFilter::make('batch_status')
+                    ->label('Status Batch')
+                    ->options(BatchStatus::options())
+                    ->query(fn ($query, $state) =>
+                        $state['value']
+                            ? $query->whereHas('batch', fn ($q) => $q->where('status', $state['value']))
+                            : $query
+                    ),
             ])
             ->recordActions([
                 EditAction::make()

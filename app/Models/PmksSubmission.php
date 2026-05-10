@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\BatchStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -15,7 +16,6 @@ class PmksSubmission extends Model
         'village_id',
         'resident_id',
         'category_id',
-        'status',
         'notes',
         'input_by',
         'disability_types',
@@ -24,6 +24,22 @@ class PmksSubmission extends Model
     protected $casts = [
         'disability_types' => 'array',
     ];
+
+    // Derive status dari batch induk
+    public function getStatusAttribute(): string
+    {
+        return $this->batch?->status->value ?? 'draft';
+    }
+
+    public function getStatusLabelAttribute(): string
+    {
+        return $this->batch?->status->label() ?? 'Draft';
+    }
+
+    public function getStatusColorAttribute(): string
+    {
+        return $this->batch?->status->color() ?? 'gray';
+    }
 
     public function batch(): BelongsTo
     {
