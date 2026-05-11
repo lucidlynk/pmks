@@ -4,10 +4,11 @@ namespace App\Enums;
 
 enum UserRole: string
 {
-    case ADMIN_DINSOS       = 'admin_dinsos';
-    case OPERATOR_BIDANG    = 'operator_bidang';
-    case VERIFIKATOR        = 'verifikator';
-    case OPERATOR_DESA      = 'operator_desa';
+    case ADMIN_DINSOS    = 'admin_dinsos';
+    case OPERATOR_BIDANG = 'operator_bidang';
+    case VERIFIKATOR     = 'verifikator';
+    case OPERATOR_DESA   = 'operator_desa';
+    case STAF_DINSOS     = 'staf_dinsos';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum UserRole: string
             self::OPERATOR_BIDANG => 'Operator Bidang Dinsos',
             self::VERIFIKATOR     => 'Verifikator Dinsos',
             self::OPERATOR_DESA   => 'Operator Desa',
+            self::STAF_DINSOS     => 'Staf Dinsos',
         };
     }
 
@@ -45,6 +47,10 @@ enum UserRole: string
                 'data.create',
                 'data.edit',
                 'data.view',
+            ],
+            self::STAF_DINSOS => [
+                'data.view',
+                'dtsen.process',
             ],
         };
     }

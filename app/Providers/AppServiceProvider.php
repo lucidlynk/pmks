@@ -8,6 +8,8 @@ use App\Models\PmksSubmission;
 use App\Models\PsksSubmission;
 use App\Models\Resident;
 use App\Models\SubmissionBatch;
+use App\Models\DtsenDocument;
+use App\Models\DtsenRequest;
 use App\Models\User;
 use App\Observers\AuditLogObserver;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -38,5 +40,7 @@ class AppServiceProvider extends ServiceProvider
         SubmissionBatch::observe(AuditLogObserver::class);
         PmksSubmission::observe(AuditLogObserver::class);
         PsksSubmission::observe(AuditLogObserver::class);
+        DtsenRequest::observe(AuditLogObserver::class);
+        DtsenDocument::observe(AuditLogObserver::class);
     }
 }
