@@ -54,6 +54,11 @@ class SubmissionBatchPolicy
         return false;
     }
 
+    public function deleteAny(User $user): bool
+    {
+        return $user->isAdminDinsos();
+    }
+
     public function delete(User $user, SubmissionBatch $batch): bool
     {
         if (!$user->isAdminDinsos()) return false;
