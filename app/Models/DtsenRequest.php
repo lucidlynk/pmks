@@ -3,16 +3,17 @@
 namespace App\Models;
 
 use App\Enums\DtsenStatus;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\DB;
 
 class DtsenRequest extends Model
 {
-    use SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'reference_number',
@@ -25,17 +26,12 @@ class DtsenRequest extends Model
         'processed_at',
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'status'       => DtsenStatus::class,
-            'processed_at' => 'datetime',
-        ];
-    }
+    protected $casts = [
+        'status'       => DtsenStatus::class,
+        'processed_at' => 'datetime',
+    ];
 
-    // -------------------------------------------------------------------------
-    // Relations
-    // -------------------------------------------------------------------------
+    // ─── Relationships ────────────────────────────────────────────
 
     public function village(): BelongsTo
     {
@@ -63,80 +59,35 @@ class DtsenRequest extends Model
         return $this->hasMany(DtsenDocument::class);
     }
 
-    public function currentDocument(): HasMany
+    public function currentDocument(): HasOne
     {
-        return $this->hasMany(DtsenDocument::class)->where('is_current', true);
+        return $this->hasOne(DtsenDocument::class)
+                    ->where('is_current', true)
+                    ->latestOfMany();
     }
 
-    // -------------------------------------------------------------------------
-    // Business logic — status transitions
-    // -------------------------------------------------------------------------
-
-    public function submit(): void
-    {
-        abort_unless($this->status->canSubmit(), 422, 'Permohonan tidak dapat diajukan.');
-
-        $this->update(['status' => DtsenStatus::SUBMITTED]);
-    }
-
-    public function process(User $staf): void
-    {
-        abort_unless($this->status->canProcess(), 422, 'Permohonan tidak dalam status yang bisa diproses.');
-
-        $this->update([
-            'status'       => DtsenStatus::ON_PROCESS,
-            'processed_by' => $staf->id,
-            'processed_at' => now(),
-        ]);
-    }
-
-    public function cancel(): void
-    {
-        abort_unless($this->status->canCancel(), 422, 'Permohonan tidak dapat dibatalkan.');
-
-        $this->update(['status' => DtsenStatus::CANCELLED]);
-    }
-
-    public function markReady(): void
-    {
-        abort_unless($this->status === DtsenStatus::ON_PROCESS, 422, 'Permohonan belum dalam proses.');
-
-        $this->update(['status' => DtsenStatus::READY]);
-    }
-
-    // -------------------------------------------------------------------------
-    // Reference number generator
-    // -------------------------------------------------------------------------
+    // ─── Business Logic ───────────────────────────────────────────
 
     public static function generateReferenceNumber(): string
     {
-        return DB::transaction(function () {
-            $year  = now()->format('Y');
-            $month = now()->format('m');
-            $prefix = "DTSEN/{$year}/{$month}/";
+        $year  = now()->format('Y');
+        $month = now()->format('m');
 
-            $last = self::withTrashed()
-                ->where('reference_number', 'like', $prefix . '%')
-                ->lockForUpdate()
-                ->count();
+        $count = static::whereYear('created_at', $year)
+                       ->whereMonth('created_at', $month)
+                       ->withTrashed()
+                       ->count() + 1;
 
-            $sequence = str_pad($last + 1, 4, '0', STR_PAD_LEFT);
-
-            return $prefix . $sequence;
-        });
+        return sprintf('DTSEN/%s/%s/%04d', $year, $month, $count);
     }
 
-    // -------------------------------------------------------------------------
-    // Scopes
-    // -------------------------------------------------------------------------
-
-    public function scopeForVillage($query, int $villageId)
+    public function isOwnedBy(User $user): bool
     {
-        return $query->where('village_id', $villageId);
+        return $this->user_id === $user->id;
     }
 
-    public function scopeByStatus($query, DtsenStatus $status)
+    public function canBeEditedBy(User $user): bool
     {
-        return $query->where('status', $status->value);
+        return $this->status->canEdit() && $this->isOwnedBy($user);
     }
 }
