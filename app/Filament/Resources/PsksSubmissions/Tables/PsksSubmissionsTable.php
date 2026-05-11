@@ -96,7 +96,22 @@ class PsksSubmissionsTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()
+                        ->authorize(fn () => true)
+                        ->deselectRecordsAfterCompletion()
+                        ->before(function ($records, $action) {
+                            $locked = $records->filter(
+                                fn ($r) => !$r->batch?->canBeEdited()
+                            );
+                            if ($locked->isNotEmpty()) {
+                                $action->cancel();
+                                \Filament\Notifications\Notification::make()
+                                    ->title("Tidak dapat menghapus")
+                                    ->body("Beberapa data sudah diajukan atau disetujui dan tidak bisa dihapus.")
+                                    ->danger()
+                                    ->send();
+                            }
+                        }),
                 ]),
             ])
             ->defaultSort('created_at', 'desc');
