@@ -1,0 +1,274 @@
+================================================================
+PUSKESOSGCT — CLAUDE AI CONTEXT DOCUMENT
+Sistem Pendataan PMKS & PSKS
+Dinas Sosial Kabupaten Buleleng, Bali
+Dibuat: Mei 2026 | Versi: 1.0
+================================================================
+
+----------------------------------------------------------------
+1. IDENTITAS PROYEK
+----------------------------------------------------------------
+Nama Sistem : PUSKESOSGCT (Pusat Kesejahteraan Sosial Generasi Cerdas Terpadu)
+Instansi    : Dinas Sosial Kabupaten Buleleng, Provinsi Bali
+Developer   : Staf IT Dinas Sosial (lucidlynk)
+GitHub      : https://github.com/lucidlynk/pmks
+Tujuan      : Mengelola pendataan PMKS dan PSKS di 114 desa/kelurahan
+              di 9 kecamatan Kabupaten Buleleng
+
+----------------------------------------------------------------
+2. STACK TEKNOLOGI
+----------------------------------------------------------------
+Framework       : Laravel 13
+Admin Panel     : Filament v4
+PHP             : 8.3
+Database        : MariaDB 10.11
+Server          : Armbian STB HG680P — RAM 2GB (resource terbatas)
+Online          : Cloudflare Zero Trust (HTTPS)
+Package utama   :
+  - spatie/laravel-permission v7.4  (RBAC)
+  - maatwebsite/excel v3.1          (Export Excel)
+  - danharrin/livewire-rate-limiting (Login throttle)
+  - livewire/livewire v3.8
+
+----------------------------------------------------------------
+3. ENVIRONMENT
+----------------------------------------------------------------
+=== PRODUCTION ===
+Path        : /DATA/coding/laravel/projects/pmks-app
+Branch Git  : main
+Port        : 80
+URL         : https://pm.lucidlynk.my.id
+Database    : pmks_app
+APP_DEBUG   : false
+Composer    : --no-dev (TIDAK bisa php artisan test)
+
+=== DEVELOPMENT ===
+Path        : /DATA/coding/laravel/projects/pmks-dev
+Branch Git  : develop
+Port        : 8001
+URL         : http://192.168.1.178:8001
+Database    : pmks_dev
+APP_DEBUG   : true
+
+=== DATABASE CREDENTIALS ===
+Host        : 127.0.0.1:3306
+Username    : root
+Password    : pingwin119
+
+----------------------------------------------------------------
+4. WORKFLOW GIT
+----------------------------------------------------------------
+1. Kerjakan fitur di pmks-dev (branch: develop)
+2. Test manual di browser port 8001
+3. git add & git commit
+4. git push origin develop
+5. git checkout main && git merge develop && git push origin main && git checkout develop
+6. cd /DATA/coding/laravel/projects/pmks-app
+7. git pull origin main
+8. php artisan optimize:clear && php artisan view:cache
+
+PENTING: Selalu jalankan "git status" sebelum deploy!
+
+----------------------------------------------------------------
+5. ROLE PENGGUNA
+----------------------------------------------------------------
+Role               | Value            | Akses
+-------------------|------------------|---------------------------
+Admin Dinsos       | admin_dinsos     | Akses penuh semua fitur
+Verifikator        | verifikator      | Lihat & verifikasi batch
+Operator Bidang    | operator_bidang  | Data semua desa, tidak bisa hapus batch
+Operator Desa      | operator_desa    | Hanya data desanya sendiri
+
+----------------------------------------------------------------
+6. MODEL UTAMA
+----------------------------------------------------------------
+User            : Pengguna sistem, terhubung ke Village (operator_desa)
+Kecamatan       : 9 kecamatan di Buleleng
+Village         : 114 desa/kelurahan
+FamilyCard      : Kartu Keluarga (no_kk 16 digit, unique)
+Resident        : Data penduduk (NIK 16 digit, unique)
+Institution     : Lembaga sosial
+PmksCategory    : Kategori PMKS dengan aturan validasi usia & gender
+PsksCategory    : Kategori PSKS (person/institution)
+SubmissionBatch : Batch pengajuan per desa per tahun (unique)
+PmksSubmission  : Data PMKS dalam batch
+PsksSubmission  : Data PSKS dalam batch (polymorphic ke Resident/Institution)
+BatchRevision   : Riwayat permintaan revisi
+AuditLog        : Log semua aktivitas (immutable, tidak bisa dihapus)
+
+----------------------------------------------------------------
+7. ALUR BATCH PENGAJUAN
+----------------------------------------------------------------
+DRAFT -> SUBMITTED -> VERIFIED -> APPROVED
+              |                       |
+           REJECTED           REVISION_REQUESTED
+              |                       |
+         (operator)              (operator)
+         reopen->DRAFT          accept->REVISED->SUBMITTED
+
+Status Aksi:
+- DRAFT              : Operator edit & submit
+- SUBMITTED          : Verifikator verify/reject
+- VERIFIED           : Admin approve/reject
+- APPROVED           : Admin request_revision
+- REJECTED           : Operator reopen -> DRAFT
+- REVISION_REQUESTED : Operator accept -> REVISED
+- REVISED            : Operator edit & submit ulang
+
+Aturan Delete Batch (hanya Admin Dinsos):
+- BOLEH hapus  : DRAFT, REJECTED, REVISION_REQUESTED, REVISED
+- TIDAK BOLEH  : SUBMITTED, VERIFIED, APPROVED
+
+----------------------------------------------------------------
+8. VALIDASI PMKS
+----------------------------------------------------------------
+Aturan validasi DISIMPAN DI DATABASE (bukan hardcoded):
+Tabel  : pmks_categories
+Kolom  : min_age, max_age (null=tanpa batas), gender_restriction (L/P/null)
+Class  : App\Rules\PmksAgeRule        (validasi usia dari DB)
+Class  : App\Rules\DisabilityTypesRule (wajib isi untuk kategori disabilitas)
+
+Kategori dengan validasi:
+- PMKS-01           : 0-5 tahun
+- PMKS-02 s/d 07    : 6-18 tahun
+- PMKS-08           : 60 tahun ke atas
+- PMKS-23           : Perempuan saja
+
+----------------------------------------------------------------
+9. HAL PENTING FILAMENT V4
+----------------------------------------------------------------
+- Section HARUS dari: Filament\Schemas\Components\Section
+  (BUKAN Filament\Forms\Components\Section)
+- $view adalah instance property (bukan static) di Page
+- $navigationIcon bertipe: string|BackedEnum|null
+- $navigationGroup bertipe: string|UnitEnum|null
+- Form method di Page menerima: Schema $schema (bukan Form $form)
+- Policy deleteAny() yang dicek Filament (bukan canDeleteAny() di Resource)
+- databaseNotifications() diaktifkan di AdminPanelProvider
+- Relation::morphMap didaftarkan di AppServiceProvider untuk PsksSubmission
+
+----------------------------------------------------------------
+10. STATUS PMKS/PSKS
+----------------------------------------------------------------
+Status PMKS dan PSKS TIDAK punya kolom sendiri.
+Status derive dari batch induknya via accessor:
+
+  public function getStatusAttribute(): string
+  {
+      return $this->batch?->status->value ?? 'draft';
+  }
+
+----------------------------------------------------------------
+11. FITUR YANG SUDAH ADA
+----------------------------------------------------------------
+[v] CRUD Kecamatan, Village, FamilyCard, Resident, Institution
+[v] CRUD PmksCategory & PsksCategory dengan aturan validasi
+[v] Batch pengajuan dengan alur 7 status lengkap
+[v] Input PMKS & PSKS dengan validasi usia/gender otomatis
+[v] Shortcut tambah penduduk langsung dari form PMKS (createOptionForm)
+[v] Export Excel: PMKS, PSKS, Rekap Batch
+[v] Audit Log immutable, hanya admin yang bisa lihat
+[v] Notifikasi in-app database ke operator saat batch diproses
+[v] Rate limiting login: 3 kali gagal = kunci 15 menit
+[v] Halaman profil & ganti password untuk semua user
+[v] Dashboard widget: stats, per kecamatan, per kategori
+[v] Halaman publik dengan kategori PMKS/PSKS dinamis dari DB
+[v] Proteksi delete berdasarkan role dan status batch
+[v] RBAC ketat dengan Policy di setiap model
+[v] Role-based action visibility di ViewSubmissionBatch
+
+----------------------------------------------------------------
+12. FITUR YANG AKAN DIKERJAKAN
+----------------------------------------------------------------
+[ ] Pengajuan surat DTSEN dari desa ke Dinsos
+    - Volume: 40-60 surat per minggu
+    - Alur:
+      1. Operator Desa ajukan permohonan untuk warga (by NIK)
+      2. Staf Dinsos download dari SIKS-NG Kemensos
+      3. Minta TTD Kadinas (tanda tangan basah)
+      4. Upload PDF surat ke sistem
+      5. Operator Desa download surat
+    - Surat diajukan lewat Operator Desa (bukan portal publik)
+    - Tanda tangan: basah yang di-scan (bukan elektronik)
+
+----------------------------------------------------------------
+13. STRUKTUR FOLDER PENTING
+----------------------------------------------------------------
+app/
+├── Enums/
+│   ├── BatchStatus.php       (7 status: draft,submitted,verified,
+│   │                          approved,rejected,revision_requested,revised)
+│   └── UserRole.php          (4 role user)
+├── Filament/
+│   ├── Pages/
+│   │   ├── Login.php         (Custom login dengan rate limiting)
+│   │   └── EditProfile.php   (Halaman profil & ganti password)
+│   ├── Resources/
+│   │   ├── SubmissionBatches/
+│   │   │   └── Pages/ViewSubmissionBatch.php (Semua action batch)
+│   │   ├── PmksSubmissions/
+│   │   └── PsksSubmissions/
+│   └── Widgets/
+│       ├── PmksPsksStatsWidget.php
+│       ├── BatchPerKecamatanWidget.php
+│       ├── PmksPerKategoriWidget.php
+│       └── PsksPerKategoriWidget.php
+├── Models/           (Semua Eloquent model)
+├── Policies/         (Authorization policy per model)
+├── Rules/
+│   ├── PmksAgeRule.php          (Validasi usia dari DB)
+│   └── DisabilityTypesRule.php  (Validasi jenis disabilitas)
+├── Services/
+│   └── AuditLogService.php      (Log semua aktivitas)
+└── Observers/
+    └── AuditLogObserver.php     (Auto-log create/update/delete)
+
+----------------------------------------------------------------
+14. PERINTAH YANG SERING DIPAKAI
+----------------------------------------------------------------
+# Clear semua cache
+php artisan optimize:clear
+
+# Cache untuk production
+php artisan optimize:clear && php artisan view:cache
+
+# Migrate
+php artisan migrate --force
+
+# Seed kategori PMKS
+php artisan db:seed --class=PmksCategorySeeder --force
+
+# Lihat semua user & role
+mysql -u root -ppingwin119 pmks_app -e "
+SELECT u.name, u.email, r.name as role
+FROM users u
+LEFT JOIN model_has_roles mr ON mr.model_id = u.id
+LEFT JOIN roles r ON r.id = mr.role_id;"
+
+# Reset password user
+php artisan tinker --execute="
+App\Models\User::where('email', 'email@example.com')
+    ->update(['password' => bcrypt('password_baru')]);
+echo 'done';"
+
+# Cek storage link
+php artisan storage:link
+
+# Cek status aplikasi
+php artisan about
+
+----------------------------------------------------------------
+15. CATATAN PENTING & JEBAKAN
+----------------------------------------------------------------
+1. RAM 2GB terbatas: hindari composer install + server berjalan bersamaan
+2. Tidak ada test di production: production pakai --no-dev
+3. Selalu git status sebelum deploy
+4. Section di Filament v4 dari Filament\Schemas\Components\Section
+5. Policy deleteAny() yang dicek Filament v4 (bukan canDeleteAny())
+6. Status PMKS/PSKS derive dari batch, tidak ada kolom status sendiri
+7. Cloudflare Zero Trust tidak mempengaruhi logika PHP
+8. git rm --cached jika file sudah terlanjur di-track tapi ingin di-ignore
+9. php artisan optimize:clear untuk clear SEMUA cache sekaligus
+10. Setelah clear cache di production, jalankan php artisan view:cache
+
+================================================================
