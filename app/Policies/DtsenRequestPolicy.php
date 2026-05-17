@@ -29,7 +29,7 @@ class DtsenRequestPolicy
 
         return $user->hasAnyRole([
             UserRole::ADMIN_DINSOS->value,
-            UserRole::STAF_DINSOS->value,
+            UserRole::VERIFIKATOR->value,
             UserRole::OPERATOR_BIDANG->value,
         ]);
     }
@@ -100,22 +100,28 @@ class DtsenRequestPolicy
     }
 
     // -------------------------------------------------------------------------
-    // Proses (SUBMITTED -> ON_PROCESS) — Staf Dinsos
+    // Proses (SUBMITTED -> ON_PROCESS) — Admin Dinsos & Verifikator
     // -------------------------------------------------------------------------
 
     public function process(User $user, DtsenRequest $request): bool
     {
-        return $user->hasRole(UserRole::STAF_DINSOS->value)
+        return $user->hasAnyRole([
+            UserRole::ADMIN_DINSOS->value,
+            UserRole::VERIFIKATOR->value,
+        ])
             && $request->status->canProcess();
     }
 
     // -------------------------------------------------------------------------
-    // Upload PDF — Staf Dinsos, status ON_PROCESS
+    // Upload PDF — Admin Dinsos & Verifikator, status ON_PROCESS
     // -------------------------------------------------------------------------
 
     public function uploadPdf(User $user, DtsenRequest $request): bool
     {
-        return $user->hasRole(UserRole::STAF_DINSOS->value)
+        return $user->hasAnyRole([
+            UserRole::ADMIN_DINSOS->value,
+            UserRole::VERIFIKATOR->value,
+        ])
             && $request->status->canUploadPdf();
     }
 
@@ -135,7 +141,7 @@ class DtsenRequestPolicy
 
         return $user->hasAnyRole([
             UserRole::ADMIN_DINSOS->value,
-            UserRole::STAF_DINSOS->value,
+            UserRole::VERIFIKATOR->value,
         ]);
     }
 }
