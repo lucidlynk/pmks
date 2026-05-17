@@ -177,6 +177,18 @@ class ViewDtsenRequest extends ViewRecord
             });
     }
 
+    private function sendNotifToOperator(string $title, string $body): void
+    {
+        $operator = $this->record->user;
+        if ($operator) {
+            Notification::make()
+                ->title($title)
+                ->body($body)
+                ->success()
+                ->sendToDatabase($operator);
+        }
+    }
+
     private function uploadPdfAction(): Action
     {
         return Action::make('uploadPdf')
@@ -215,6 +227,10 @@ class ViewDtsenRequest extends ViewRecord
                     ]);
                     $this->record->update(['status' => DtsenStatus::READY->value]);
                 });
+                $this->sendNotifToOperator(
+                    'Surat DTSEN Siap Diunduh',
+                    'Surat DTSEN untuk permohonan ' . $this->record->reference_number . ' sudah siap. Silakan login dan download surat Anda.'
+                );
                 Notification::make()
                     ->title('Surat berhasil diupload')
                     ->success()
