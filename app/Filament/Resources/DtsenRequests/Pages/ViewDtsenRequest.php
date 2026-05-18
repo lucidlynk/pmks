@@ -6,6 +6,7 @@ use App\Enums\DtsenStatus;
 use App\Enums\UserRole;
 use App\Filament\Resources\DtsenRequests\DtsenRequestResource;
 use Filament\Actions\Action;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\FileUpload;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -116,6 +117,11 @@ class ViewDtsenRequest extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            EditAction::make()
+                ->visible(fn () => $this->record->status->canEdit()
+                    && auth()->user()?->hasRole(UserRole::OPERATOR_DESA->value)
+                    && $this->record->isOwnedBy(auth()->user())
+                ),
             $this->submitAction(),
             $this->processAction(),
             $this->uploadPdfAction(),

@@ -2,6 +2,7 @@
 namespace App\Filament\Resources\DtsenRequests;
 use App\Enums\UserRole;
 use App\Filament\Resources\DtsenRequests\Pages\CreateDtsenRequest;
+use App\Filament\Resources\DtsenRequests\Pages\EditDtsenRequest;
 use App\Filament\Resources\DtsenRequests\Pages\ListDtsenRequests;
 use App\Filament\Resources\DtsenRequests\Pages\ViewDtsenRequest;
 use App\Filament\Resources\DtsenRequests\Schemas\DtsenRequestForm;
@@ -66,6 +67,7 @@ class DtsenRequestResource extends Resource
             'index'  => ListDtsenRequests::route('/'),
             'create' => CreateDtsenRequest::route('/create'),
             'view'   => ViewDtsenRequest::route('/{record}'),
+            'edit'   => EditDtsenRequest::route('/{record}/edit'),
         ];
     }
 }
