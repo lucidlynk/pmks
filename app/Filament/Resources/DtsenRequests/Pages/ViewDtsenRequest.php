@@ -204,13 +204,13 @@ class ViewDtsenRequest extends ViewRecord
             )
             ->form([
                 FileUpload::make('pdf_file')
-                    ->label('File Surat DTSEN (PDF)')
+                    ->label('File Surat DTSEN (PDF atau ZIP)')
                     ->required()
                     ->disk('private')
                     ->directory('dtsen')
-                    ->acceptedFileTypes(['application/pdf'])
-                    ->maxSize(5120)
-                    ->helperText('Maksimal 5MB, format PDF'),
+                    ->acceptedFileTypes(['application/pdf', 'application/zip', 'application/x-zip-compressed'])
+                    ->maxSize(51200)
+                    ->helperText('Upload 1 PDF (1 warga) atau 1 ZIP berisi banyak PDF (banyak warga). Maks 50MB.'),
             ])
             ->action(function (array $data): void {
                 DB::transaction(function () use ($data): void {
@@ -258,10 +258,9 @@ class ViewDtsenRequest extends ViewRecord
                         ->send();
                     return null;
                 }
-                return Storage::disk('private')->download(
-                    $document->file_path,
-                    str_replace('/', '-', 'DTSEN-' . $this->record->reference_number . '.pdf')
-                );
+                $ext = pathinfo($document->file_path, PATHINFO_EXTENSION);
+                $filename = str_replace('/', '-', 'DTSEN-' . $this->record->reference_number . '.' . $ext);
+                return Storage::disk('private')->download($document->file_path, $filename);
             });
     }
 

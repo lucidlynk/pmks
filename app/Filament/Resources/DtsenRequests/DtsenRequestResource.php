@@ -54,7 +54,7 @@ class DtsenRequestResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->with(['village.kecamatan', 'user', 'processedBy', 'residents', 'currentDocument'])
+            ->with(['village.kecamatan', 'user', 'processedBy', 'residents', 'currentDocument'])->withCount('residents')
             ->when(
                 auth()->user()?->isOperatorDesa() && auth()->user()->village_id,
                 fn ($q) => $q->where('village_id', auth()->user()->village_id)
