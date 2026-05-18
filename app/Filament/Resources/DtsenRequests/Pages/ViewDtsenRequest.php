@@ -285,11 +285,31 @@ class ViewDtsenRequest extends ViewRecord
             )
             ->action(function (): void {
                 $this->record->update(['status' => DtsenStatus::CANCELLED->value]);
+                $this->sendNotifToStaf(
+                    'Permohonan DTSEN Dibatalkan',
+                    'Permohonan ' . $this->record->reference_number . ' dari Desa ' . $this->record->village->name . ' telah dibatalkan oleh operator desa.'
+                );
                 Notification::make()
                     ->title('Permohonan dibatalkan')
                     ->danger()
                     ->send();
                 $this->refreshFormData(['status']);
             });
+    }
+
+    private function sendNotifToStaf(string $title, string $body): void
+    {
+        $staf = \App\Models\User::role([
+            UserRole::ADMIN_DINSOS->value,
+            UserRole::VERIFIKATOR->value,
+        ])->get();
+
+        foreach ($staf as $user) {
+            Notification::make()
+                ->title($title)
+                ->body($body)
+                ->warning()
+                ->sendToDatabase($user);
+        }
     }
 }
