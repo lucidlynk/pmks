@@ -52,7 +52,7 @@ class ViewDtsenRequest extends ViewRecord
                         ->columnSpanFull(),
 
                     TextEntry::make('notes')
-                        ->label('Catatan')
+                        ->label('Catatan dari Operator Desa')
                         ->columnSpanFull()
                         ->placeholder('Tidak ada catatan'),
                 ]),

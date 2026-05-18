@@ -62,7 +62,8 @@ class DtsenRequestForm
                 ->helperText('Jelaskan keperluan permohonan surat DTSEN'),
 
             Textarea::make('notes')
-                ->label('Catatan Tambahan')
+                ->label('Catatan dari Operator Desa')
+                ->helperText('Catatan tambahan dari operator desa untuk Dinsos (opsional)')
                 ->rows(2)
                 ->nullable(),
         ]);
