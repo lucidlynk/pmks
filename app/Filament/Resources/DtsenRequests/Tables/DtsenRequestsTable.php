@@ -2,8 +2,11 @@
 namespace App\Filament\Resources\DtsenRequests\Tables;
 use App\Enums\DtsenStatus;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Filament\Forms\Components\DatePicker;
+use Illuminate\Database\Eloquent\Builder;
 class DtsenRequestsTable
 {
     public static function configure(Table $table): Table
@@ -72,6 +75,33 @@ class DtsenRequestsTable
                 SelectFilter::make('status')
                     ->label('Status')
                     ->options(DtsenStatus::options()),
+                Filter::make('tanggal_pengajuan')
+                    ->label('Tanggal Pengajuan')
+                    ->form([
+                        DatePicker::make('dari_tanggal')
+                            ->label('Dari Tanggal'),
+                        DatePicker::make('sampai_tanggal')
+                            ->label('Sampai Tanggal'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when($data['dari_tanggal'],
+                                fn ($q) => $q->whereDate('created_at', '>=', $data['dari_tanggal'])
+                            )
+                            ->when($data['sampai_tanggal'],
+                                fn ($q) => $q->whereDate('created_at', '<=', $data['sampai_tanggal'])
+                            );
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+                        if ($data['dari_tanggal']) {
+                            $indicators[] = 'Dari: ' . $data['dari_tanggal'];
+                        }
+                        if ($data['sampai_tanggal']) {
+                            $indicators[] = 'Sampai: ' . $data['sampai_tanggal'];
+                        }
+                        return $indicators;
+                    }),
             ])
             ->defaultSort('created_at', 'desc');
     }
