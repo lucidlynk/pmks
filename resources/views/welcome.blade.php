@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PUSKESOSGCT — Dinas Sosial Kabupaten Buleleng</title>
+    <title>{{ \App\Models\AppSetting::get(\App\Models\AppSetting::APP_NAME, config('app.name')) }} — Dinas Sosial Kabupaten Buleleng</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -383,9 +383,16 @@
         🏛️ Pemerintah Kabupaten Buleleng — Dinas Sosial
     </div>
     <div class="header-main">
-        <div class="logo-circle">DS</div>
+        @php $appLogo = \App\Models\AppSetting::get(\App\Models\AppSetting::APP_LOGO); @endphp
+        <div class="logo-circle" style="{{ $appLogo ? 'padding:0;overflow:hidden;' : '' }}">
+            @if($appLogo)
+                <img src="{{ asset('storage/' . $appLogo) }}" alt="Logo" style="width:100%;height:100%;object-fit:cover;">
+            @else
+                DS
+            @endif
+        </div>
         <div class="header-text">
-            <h1>PUSKESOSGCT</h1>
+            <h1>{{ \App\Models\AppSetting::get(\App\Models\AppSetting::APP_NAME, config('app.name')) }}</h1>
             <h2>Sistem Pendataan PMKS & PSKS</h2>
             <p>Pusat Kesejahteraan Sosial Generasi Cerdas Terpadu — Kabupaten Buleleng, Bali</p>
         </div>
@@ -557,7 +564,7 @@
 <!-- FOOTER -->
 <footer>
     <strong>Dinas Sosial Kabupaten Buleleng</strong><br>
-    Sistem Pendataan PMKS & PSKS — PUSKESOSGCT<br>
+    Sistem Pendataan PMKS & PSKS — {{ \App\Models\AppSetting::get(\App\Models\AppSetting::APP_NAME, config('app.name')) }}<br>
     Kabupaten Buleleng, Provinsi Bali<br><br>
     <small>© {{ date('Y') }} Dinas Sosial Kabupaten Buleleng. Hak cipta dilindungi undang-undang.</small>
 </footer>

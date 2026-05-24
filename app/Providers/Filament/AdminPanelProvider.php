@@ -8,6 +8,7 @@ use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Filament\Pages\Dashboard;
+use App\Models\AppSetting;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -32,7 +33,10 @@ class AdminPanelProvider extends PanelProvider
             ->colors([
                 'primary' => Color::Blue,
             ])
-            ->brandName('PUSKESOSGCT Buleleng')
+            ->brandName(fn () => AppSetting::get(AppSetting::APP_NAME, 'PUSKESOSGCT Buleleng'))
+            ->favicon(fn () => AppSetting::get(AppSetting::APP_FAVICON)
+                ? asset('storage/' . AppSetting::get(AppSetting::APP_FAVICON))
+                : null)
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
