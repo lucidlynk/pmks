@@ -6,8 +6,8 @@ use App\Enums\UserRole;
 use App\Models\DtsenRekap;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\ForceDeleteAction;
+use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -87,14 +87,14 @@ class DtsenRekapsTable
                         );
                     }),
 
-                DeleteAction::make()
+                ForceDeleteAction::make()
                     ->visible(
                         fn () => auth()->user()?->hasRole(UserRole::ADMIN_DINSOS->value)
                     ),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make()
+                    ForceDeleteBulkAction::make()
                         ->visible(
                             fn () => auth()->user()?->hasRole(UserRole::ADMIN_DINSOS->value)
                         ),
