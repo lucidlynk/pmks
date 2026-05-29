@@ -4,12 +4,14 @@ namespace App\Providers;
 
 use App\Models\FamilyCard;
 use App\Models\Institution;
+use App\Models\KisRekap;
 use App\Models\PmksSubmission;
 use App\Models\PsksSubmission;
 use App\Models\Resident;
 use App\Models\SubmissionBatch;
 use App\Policies\FamilyCardPolicy;
 use App\Policies\InstitutionPolicy;
+use App\Policies\KisRekapPolicy;
 use App\Policies\PmksSubmissionPolicy;
 use App\Policies\PsksSubmissionPolicy;
 use App\Policies\ResidentPolicy;
@@ -25,6 +27,7 @@ class AuthServiceProvider extends ServiceProvider
         Institution::class     => InstitutionPolicy::class,
         PmksSubmission::class  => PmksSubmissionPolicy::class,
         PsksSubmission::class  => PsksSubmissionPolicy::class,
+        KisRekap::class        => KisRekapPolicy::class,
     ];
 
     public function boot(): void
