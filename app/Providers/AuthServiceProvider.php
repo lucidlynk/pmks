@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\BansosImport;
 use App\Models\DinasSurat;
 use App\Models\FamilyCard;
 use App\Models\Institution;
@@ -11,6 +12,7 @@ use App\Models\PmksSubmission;
 use App\Models\PsksSubmission;
 use App\Models\Resident;
 use App\Models\SubmissionBatch;
+use App\Policies\BansosImportPolicy;
 use App\Policies\DinasSuratPolicy;
 use App\Policies\FamilyCardPolicy;
 use App\Policies\InstitutionPolicy;
@@ -34,6 +36,7 @@ class AuthServiceProvider extends ServiceProvider
         KisRekap::class         => KisRekapPolicy::class,
         KisPbiApbdImport::class => KisPbiApbdImportPolicy::class,
         DinasSurat::class       => DinasSuratPolicy::class,
+        BansosImport::class     => BansosImportPolicy::class,
     ];
 
     public function boot(): void
