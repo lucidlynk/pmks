@@ -20,7 +20,6 @@ class BansosChunkJob implements ShouldQueue
     public int $timeout = 300;
     public int $tries   = 3;
 
-    // Map status dari CSV ke enum
     private const STATUS_MAP = [
         'sudah si'        => 'sudah_si',
         'sudah_si'        => 'sudah_si',
@@ -29,6 +28,15 @@ class BansosChunkJob implements ShouldQueue
         'sudah_salur'     => 'sudah_salur',
         'sudah transaksi' => 'sudah_transaksi',
         'sudah_transaksi' => 'sudah_transaksi',
+    ];
+
+    // Sembako bisa datang dengan nama: SEMBAKO, BPNT, BPNT SEMBAKO, dll
+    private const JENIS_MAP = [
+        'pkh'          => 'pkh',
+        'sembako'      => 'sembako',
+        'bpnt'         => 'sembako',
+        'bpnt sembako' => 'sembako',
+        'sembako bpnt' => 'sembako',
     ];
 
     public function __construct(
@@ -44,10 +52,15 @@ class BansosChunkJob implements ShouldQueue
 
     private function normalizeJenis(string $value): string
     {
-        $val = strtolower(trim($value));
-        if (str_contains($val, 'sembako')) return 'sembako';
-        if (str_contains($val, 'pkh')) return 'pkh';
-        return $val;
+        $key = strtolower(trim($value));
+        // Cek exact match dulu
+        if (isset(self::JENIS_MAP[$key])) {
+            return self::JENIS_MAP[$key];
+        }
+        // Cek contains
+        if (str_contains($key, 'pkh')) return 'pkh';
+        if (str_contains($key, 'sembako') || str_contains($key, 'bpnt')) return 'sembako';
+        return $key;
     }
 
     public function handle(): void
@@ -60,8 +73,6 @@ class BansosChunkJob implements ShouldQueue
         $errors    = [];
         $inserts   = [];
 
-        // Kolom CSV: NAMA_PENERIMA|NIK|NOKK|PENYALURAN_OLEH|BANSOS|
-        //            PROP_NAME|KAB_NAME|KEC_NAME|KEL_NAME|ALAMAT|status|kode_batch_penyaluran
         foreach ($this->rows as $row) {
             try {
                 if (count($row) < 11) {
@@ -75,11 +86,8 @@ class BansosChunkJob implements ShouldQueue
                 $nokk     = trim($row[2]);
                 $penyalur = trim($row[3]);
                 $jenis    = $this->normalizeJenis($row[4]);
-                // $row[5] = PROP_NAME (skip)
-                // $row[6] = KAB_NAME (skip)
                 $kec      = trim($row[7]);
                 $kel      = trim($row[8]);
-                // $row[9] = ALAMAT (skip)
                 $status   = $this->normalizeStatus($row[10]);
                 $kode     = isset($row[11]) ? trim($row[11]) : null;
 
@@ -89,21 +97,28 @@ class BansosChunkJob implements ShouldQueue
                     continue;
                 }
 
+                // Validasi jenis harus pkh atau sembako
+                if (!in_array($jenis, ['pkh', 'sembako'])) {
+                    $failed++;
+                    $errors[] = "Jenis bansos tidak dikenal: {$row[4]} (nama: {$nama})";
+                    continue;
+                }
+
                 $inserts[] = [
-                    'import_id'      => $this->importId,
-                    'nama_penerima'  => $nama,
-                    'nik'            => $nik,
-                    'nokk'           => $nokk ?: null,
-                    'penyaluran_oleh'=> $penyalur ?: null,
-                    'jenis_bansos'   => $jenis,
-                    'kec_name'       => $kec ?: null,
-                    'kel_name'       => $kel ?: null,
-                    'status_bansos'  => $status,
-                    'kode_batch'     => $kode,
-                    'triwulan'       => $import->triwulan,
-                    'tahun'          => $import->tahun,
-                    'created_at'     => now(),
-                    'updated_at'     => now(),
+                    'import_id'       => $this->importId,
+                    'nama_penerima'   => $nama,
+                    'nik'             => $nik,
+                    'nokk'            => $nokk ?: null,
+                    'penyaluran_oleh' => $penyalur ?: null,
+                    'jenis_bansos'    => $jenis,
+                    'kec_name'        => $kec ?: null,
+                    'kel_name'        => $kel ?: null,
+                    'status_bansos'   => $status,
+                    'kode_batch'      => $kode,
+                    'triwulan'        => $import->triwulan,
+                    'tahun'           => $import->tahun,
+                    'created_at'      => now(),
+                    'updated_at'      => now(),
                 ];
 
                 $processed++;
@@ -118,7 +133,6 @@ class BansosChunkJob implements ShouldQueue
             }
         }
 
-        // Bulk insert lebih cepat dari satu-per-satu
         if (!empty($inserts)) {
             foreach (array_chunk($inserts, 100) as $batch) {
                 BansosMember::insert($batch);
