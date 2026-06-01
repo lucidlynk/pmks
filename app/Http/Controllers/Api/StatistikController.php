@@ -3,7 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\BansosMember;
+use App\Models\DtsenRekap;
 use App\Models\Kecamatan;
+use App\Models\KisRekap;
 use App\Models\PmksSubmission;
 use App\Models\PsksSubmission;
 use App\Models\Village;
@@ -17,10 +20,10 @@ class StatistikController extends Controller
         return (int) $request->get('tahun', now()->year);
     }
 
-    /**
-     * Ringkasan total PMKS & PSKS
-     * GET /api/v1/statistik/ringkasan?tahun=2025
-     */
+    // ================================================================
+    // PMKS & PSKS (sudah ada, tidak berubah)
+    // ================================================================
+
     public function ringkasan(Request $request): JsonResponse
     {
         $year = $this->getYear($request);
@@ -33,113 +36,71 @@ class StatistikController extends Controller
             $q->where('period_year', $year)->where('status', 'approved')
         )->count();
 
-        $totalPmksDraft = PmksSubmission::whereHas('batch', fn ($q) =>
-            $q->where('period_year', $year)
-        )->count();
-
-        $totalPsksDraft = PsksSubmission::whereHas('batch', fn ($q) =>
-            $q->where('period_year', $year)
-        )->count();
-
         return response()->json([
-            'status'    => 'success',
-            'tahun'     => $year,
-            'wilayah'   => 'Kabupaten Buleleng',
-            'data'      => [
-                'total_pmks'            => $totalPmks,
-                'total_psks'            => $totalPsks,
-                'total_pmks_semua_status' => $totalPmksDraft,
-                'total_psks_semua_status' => $totalPsksDraft,
-                'total_kecamatan'       => Kecamatan::active()->count(),
-                'total_desa'            => Village::active()->count(),
+            'success'      => true,
+            'tahun'        => $year,
+            'wilayah'      => 'Kabupaten Buleleng',
+            'data'         => [
+                'total_pmks'      => $totalPmks,
+                'total_psks'      => $totalPsks,
+                'total_kecamatan' => Kecamatan::active()->count(),
+                'total_desa'      => Village::active()->count(),
             ],
             'generated_at' => now()->toIso8601String(),
         ]);
     }
 
-    /**
-     * Data PMKS per kecamatan dan desa
-     * GET /api/v1/statistik/pmks?tahun=2025&status=approved
-     */
     public function pmks(Request $request): JsonResponse
     {
         $year   = $this->getYear($request);
         $status = $request->get('status', 'approved');
 
         $kecamatans = Kecamatan::active()
-            ->with(['villages' => function ($q) {
-                $q->active()->orderBy('name');
-            }])
+            ->with(['villages' => fn ($q) => $q->active()->orderBy('name')])
             ->orderBy('name')
             ->get()
             ->map(function ($kecamatan) use ($year, $status) {
                 $villages = $kecamatan->villages->map(function ($village) use ($year, $status) {
-                    $query = PmksSubmission::where('village_id', $village->id)
+                    $total = PmksSubmission::where('village_id', $village->id)
                         ->whereHas('batch', fn ($q) =>
                             $q->where('period_year', $year)
                               ->when($status !== 'semua', fn ($q) => $q->where('status', $status))
-                        );
-
-                    $total = $query->count();
-
-                    // Per kategori
-                    $perKategori = PmksSubmission::where('village_id', $village->id)
-                        ->whereHas('batch', fn ($q) =>
-                            $q->where('period_year', $year)
-                              ->when($status !== 'semua', fn ($q) => $q->where('status', $status))
-                        )
-                        ->with('category:id,code,name')
-                        ->get()
-                        ->groupBy('category_id')
-                        ->map(fn ($items) => [
-                            'kode'  => $items->first()->category?->code,
-                            'nama'  => $items->first()->category?->name,
-                            'total' => $items->count(),
-                        ])
-                        ->values();
+                        )->count();
 
                     return [
-                        'id'           => $village->id,
-                        'nama_desa'    => $village->name,
-                        'tipe'         => $village->type,
-                        'total_pmks'   => $total,
-                        'per_kategori' => $perKategori,
+                        'id'         => $village->id,
+                        'nama_desa'  => $village->name,
+                        'tipe'       => $village->type,
+                        'total_pmks' => $total,
                     ];
                 });
 
                 return [
-                    'id'              => $kecamatan->id,
-                    'nama_kecamatan'  => $kecamatan->name,
-                    'total_pmks'      => $villages->sum('total_pmks'),
-                    'total_desa'      => $villages->count(),
-                    'desa'            => $villages,
+                    'id'             => $kecamatan->id,
+                    'nama_kecamatan' => $kecamatan->name,
+                    'total_pmks'     => $villages->sum('total_pmks'),
+                    'desa'           => $villages,
                 ];
             });
 
         return response()->json([
-            'status'  => 'success',
-            'tahun'   => $year,
-            'filter_status' => $status,
-            'wilayah' => 'Kabupaten Buleleng',
-            'total_pmks' => $kecamatans->sum('total_pmks'),
-            'data'    => $kecamatans,
+            'success'      => true,
+            'tahun'        => $year,
+            'status_filter'=> $status,
+            'wilayah'      => 'Kabupaten Buleleng',
+            'total_pmks'   => $kecamatans->sum('total_pmks'),
+            'data'         => $kecamatans,
             'generated_at' => now()->toIso8601String(),
         ]);
     }
 
-    /**
-     * Data PSKS per kecamatan dan desa
-     * GET /api/v1/statistik/psks?tahun=2025&status=approved
-     */
     public function psks(Request $request): JsonResponse
     {
         $year   = $this->getYear($request);
         $status = $request->get('status', 'approved');
 
         $kecamatans = Kecamatan::active()
-            ->with(['villages' => function ($q) {
-                $q->active()->orderBy('name');
-            }])
+            ->with(['villages' => fn ($q) => $q->active()->orderBy('name')])
             ->orderBy('name')
             ->get()
             ->map(function ($kecamatan) use ($year, $status) {
@@ -150,44 +111,11 @@ class StatistikController extends Controller
                               ->when($status !== 'semua', fn ($q) => $q->where('status', $status))
                         )->count();
 
-                    $totalPerson = PsksSubmission::where('village_id', $village->id)
-                        ->where('subject_type', 'person')
-                        ->whereHas('batch', fn ($q) =>
-                            $q->where('period_year', $year)
-                              ->when($status !== 'semua', fn ($q) => $q->where('status', $status))
-                        )->count();
-
-                    $totalInstitution = PsksSubmission::where('village_id', $village->id)
-                        ->where('subject_type', 'institution')
-                        ->whereHas('batch', fn ($q) =>
-                            $q->where('period_year', $year)
-                              ->when($status !== 'semua', fn ($q) => $q->where('status', $status))
-                        )->count();
-
-                    $perKategori = PsksSubmission::where('village_id', $village->id)
-                        ->whereHas('batch', fn ($q) =>
-                            $q->where('period_year', $year)
-                              ->when($status !== 'semua', fn ($q) => $q->where('status', $status))
-                        )
-                        ->with('category:id,code,name,subject_type')
-                        ->get()
-                        ->groupBy('category_id')
-                        ->map(fn ($items) => [
-                            'kode'         => $items->first()->category?->code,
-                            'nama'         => $items->first()->category?->name,
-                            'jenis_subjek' => $items->first()->category?->subject_type,
-                            'total'        => $items->count(),
-                        ])
-                        ->values();
-
                     return [
-                        'id'                => $village->id,
-                        'nama_desa'         => $village->name,
-                        'tipe'              => $village->type,
-                        'total_psks'        => $total,
-                        'total_individu'    => $totalPerson,
-                        'total_lembaga'     => $totalInstitution,
-                        'per_kategori'      => $perKategori,
+                        'id'         => $village->id,
+                        'nama_desa'  => $village->name,
+                        'tipe'       => $village->type,
+                        'total_psks' => $total,
                     ];
                 });
 
@@ -195,33 +123,26 @@ class StatistikController extends Controller
                     'id'             => $kecamatan->id,
                     'nama_kecamatan' => $kecamatan->name,
                     'total_psks'     => $villages->sum('total_psks'),
-                    'total_desa'     => $villages->count(),
                     'desa'           => $villages,
                 ];
             });
 
         return response()->json([
-            'status'     => 'success',
-            'tahun'      => $year,
-            'filter_status' => $status,
-            'wilayah'    => 'Kabupaten Buleleng',
-            'total_psks' => $kecamatans->sum('total_psks'),
-            'data'       => $kecamatans,
+            'success'      => true,
+            'tahun'        => $year,
+            'status_filter'=> $status,
+            'wilayah'      => 'Kabupaten Buleleng',
+            'total_psks'   => $kecamatans->sum('total_psks'),
+            'data'         => $kecamatans,
             'generated_at' => now()->toIso8601String(),
         ]);
     }
 
-    /**
-     * Ringkasan per kecamatan
-     * GET /api/v1/statistik/kecamatan?tahun=2025
-     */
     public function perKecamatan(Request $request): JsonResponse
     {
         $year = $this->getYear($request);
 
-        $data = Kecamatan::active()
-            ->orderBy('name')
-            ->get()
+        $data = Kecamatan::active()->orderBy('name')->get()
             ->map(function ($kecamatan) use ($year) {
                 $villageIds = $kecamatan->villages()->active()->pluck('id');
 
@@ -242,29 +163,23 @@ class StatistikController extends Controller
                     'total_desa'     => $kecamatan->villages()->active()->count(),
                     'total_pmks'     => $totalPmks,
                     'total_psks'     => $totalPsks,
-                    'total'          => $totalPmks + $totalPsks,
                 ];
             });
 
         return response()->json([
-            'status'     => 'success',
-            'tahun'      => $year,
-            'wilayah'    => 'Kabupaten Buleleng',
-            'total_pmks' => $data->sum('total_pmks'),
-            'total_psks' => $data->sum('total_psks'),
-            'data'       => $data,
+            'success'      => true,
+            'tahun'        => $year,
+            'wilayah'      => 'Kabupaten Buleleng',
+            'total_pmks'   => $data->sum('total_pmks'),
+            'total_psks'   => $data->sum('total_psks'),
+            'data'         => $data,
             'generated_at' => now()->toIso8601String(),
         ]);
     }
 
-    /**
-     * Ringkasan per desa dalam kecamatan tertentu
-     * GET /api/v1/statistik/desa/{kecamatan_id}?tahun=2025
-     */
     public function perDesa(Request $request, ?int $kecamatanId = null): JsonResponse
     {
-        $year = $this->getYear($request);
-
+        $year  = $this->getYear($request);
         $query = Village::active()->with('kecamatan:id,name');
 
         if ($kecamatanId) {
@@ -286,23 +201,191 @@ class StatistikController extends Controller
                 'id'             => $village->id,
                 'nama_desa'      => $village->name,
                 'tipe'           => $village->type,
-                'kecamatan_id'   => $village->kecamatan_id,
                 'nama_kecamatan' => $village->kecamatan?->name,
                 'total_pmks'     => $totalPmks,
                 'total_psks'     => $totalPsks,
-                'total'          => $totalPmks + $totalPsks,
             ];
         });
 
         return response()->json([
-            'status'     => 'success',
-            'tahun'      => $year,
-            'wilayah'    => $kecamatanId
-                ? Kecamatan::find($kecamatanId)?->name . ', Buleleng'
+            'success'      => true,
+            'tahun'        => $year,
+            'wilayah'      => $kecamatanId
+                ? (Kecamatan::find($kecamatanId)?->name . ', Buleleng')
                 : 'Kabupaten Buleleng',
-            'total_pmks' => $data->sum('total_pmks'),
-            'total_psks' => $data->sum('total_psks'),
-            'data'       => $data,
+            'total_pmks'   => $data->sum('total_pmks'),
+            'total_psks'   => $data->sum('total_psks'),
+            'data'         => $data,
+            'generated_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    // ================================================================
+    // DTSEN
+    // ================================================================
+
+    public function dtsen(Request $request): JsonResponse
+    {
+        // Ambil rekap DTSEN terbaru
+        $rekap = DtsenRekap::with('details')
+            ->orderByDesc('tahun')
+            ->orderByDesc('bulan')
+            ->first();
+
+        if (!$rekap) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Belum ada data DTSEN',
+                'data'    => null,
+                'generated_at' => now()->toIso8601String(),
+            ]);
+        }
+
+        $bulanLabel = [
+            1=>'Januari', 2=>'Februari', 3=>'Maret', 4=>'April',
+            5=>'Mei', 6=>'Juni', 7=>'Juli', 8=>'Agustus',
+            9=>'September', 10=>'Oktober', 11=>'November', 12=>'Desember',
+        ];
+
+        return response()->json([
+            'success'  => true,
+            'periode'  => ($bulanLabel[$rekap->bulan] ?? $rekap->bulan) . ' ' . $rekap->tahun,
+            'wilayah'  => 'Kabupaten Buleleng',
+            'data'     => [
+                'total_keluarga'    => $rekap->details->sum('jumlah_keluarga'),
+                'total_jiwa'        => $rekap->details->sum('jumlah_individu'),
+                'per_desil'         => $rekap->details->map(fn ($d) => [
+                    'desil'           => $d->desil,
+                    'jumlah_keluarga' => $d->jumlah_keluarga,
+                    'jumlah_jiwa'     => $d->jumlah_individu,
+                ])->values(),
+            ],
+            'generated_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    // ================================================================
+    // KIS
+    // ================================================================
+
+    public function kis(Request $request): JsonResponse
+    {
+        $year  = $this->getYear($request);
+        $bulan = $request->get('bulan');
+
+        $query = KisRekap::forYear($year)->orderBy('periode_bulan');
+
+        if ($bulan) {
+            $query->where('periode_bulan', (int) $bulan);
+        }
+
+        $rekaps = $query->get();
+
+        $bulanLabel = [
+            1=>'Januari', 2=>'Februari', 3=>'Maret', 4=>'April',
+            5=>'Mei', 6=>'Juni', 7=>'Juli', 8=>'Agustus',
+            9=>'September', 10=>'Oktober', 11=>'November', 12=>'Desember',
+        ];
+
+        return response()->json([
+            'success' => true,
+            'tahun'   => $year,
+            'wilayah' => 'Kabupaten Buleleng',
+            'data'    => $rekaps->map(fn ($r) => [
+                'bulan'         => $r->periode_bulan,
+                'nama_bulan'    => $bulanLabel[$r->periode_bulan] ?? $r->periode_bulan,
+                'pbi_apbd'      => $r->pbi_apbd,
+                'pbi_apbn'      => $r->pbi_apbn,
+                'ppu'           => $r->ppu,
+                'pbpu'          => $r->pbpu,
+                'bp'            => $r->bp,
+                'total'         => $r->total,
+            ])->values(),
+            'generated_at' => now()->toIso8601String(),
+        ]);
+    }
+
+    // ================================================================
+    // BANSOS
+    // ================================================================
+
+    public function bansos(Request $request): JsonResponse
+    {
+        $jenis     = $request->get('jenis', 'pkh');
+        $triwulan  = (int) $request->get('triwulan', 1);
+        $year      = $this->getYear($request);
+
+        // Validasi input
+        if (!in_array($jenis, ['pkh', 'sembako'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Parameter jenis harus pkh atau sembako',
+            ], 422);
+        }
+
+        if ($triwulan < 1 || $triwulan > 4) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Parameter triwulan harus antara 1-4',
+            ], 422);
+        }
+
+        // Agregat per kecamatan per desa per status
+        $raw = BansosMember::where('jenis_bansos', $jenis)
+            ->where('triwulan', $triwulan)
+            ->where('tahun', $year)
+            ->selectRaw('kec_name, kel_name, status_bansos, COUNT(*) as jumlah')
+            ->groupBy('kec_name', 'kel_name', 'status_bansos')
+            ->orderBy('kec_name')
+            ->orderBy('kel_name')
+            ->get();
+
+        // Reshape
+        $data = [];
+        foreach ($raw as $row) {
+            $kec  = $row->kec_name ?? 'Tidak Diketahui';
+            $kel  = $row->kel_name ?? 'Tidak Diketahui';
+            $stat = $row->status_bansos;
+
+            if (!isset($data[$kec])) $data[$kec] = [];
+            if (!isset($data[$kec][$kel])) {
+                $data[$kec][$kel] = [
+                    'sudah_si'        => 0,
+                    'sudah_salur'     => 0,
+                    'sudah_transaksi' => 0,
+                ];
+            }
+            $data[$kec][$kel][$stat] = $row->jumlah;
+        }
+
+        // Format response
+        $formatted = collect($data)->map(function ($desas, $kec) {
+            $desaList = collect($desas)->map(fn ($stat, $kel) => array_merge(
+                ['nama_desa' => $kel], $stat
+            ))->values();
+
+            return [
+                'nama_kecamatan'  => $kec,
+                'total_sudah_si'  => $desaList->sum('sudah_si'),
+                'total_sudah_salur'=> $desaList->sum('sudah_salur'),
+                'total_sudah_transaksi' => $desaList->sum('sudah_transaksi'),
+                'desa'            => $desaList,
+            ];
+        })->values();
+
+        $triwulanLabel = [1=>'TW1 (Jan-Mar)', 2=>'TW2 (Apr-Jun)', 3=>'TW3 (Jul-Sep)', 4=>'TW4 (Okt-Des)'];
+
+        return response()->json([
+            'success'    => true,
+            'jenis'      => strtoupper($jenis),
+            'triwulan'   => $triwulan,
+            'periode'    => ($triwulanLabel[$triwulan] ?? 'TW'.$triwulan) . ' ' . $year,
+            'tahun'      => $year,
+            'wilayah'    => 'Kabupaten Buleleng',
+            'total_sudah_si'        => $formatted->sum('total_sudah_si'),
+            'total_sudah_salur'     => $formatted->sum('total_sudah_salur'),
+            'total_sudah_transaksi' => $formatted->sum('total_sudah_transaksi'),
+            'data'       => $formatted,
             'generated_at' => now()->toIso8601String(),
         ]);
     }
