@@ -561,6 +561,166 @@
         </div>
     </div>
 
+
+<!-- STATISTIK LIVE -->
+<div id="statistik" style="margin-bottom:48px;">
+    <div class="section-title">Statistik Kesejahteraan Sosial</div>
+    <div class="section-subtitle">Data real-time Kabupaten Buleleng tahun {{ $tahun }}</div>
+
+    {{-- PMKS & PSKS --}}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:32px;">
+        <div style="background:#eff6ff;border-radius:12px;padding:24px;text-align:center;border:1px solid #bfdbfe;">
+            <div style="font-size:2rem;font-weight:700;color:#1d4ed8;">{{ number_format($totalPmks) }}</div>
+            <div style="font-size:0.9rem;color:#1e40af;margin-top:4px;">Total PMKS {{ $tahun }}</div>
+        </div>
+        <div style="background:#f0fdf4;border-radius:12px;padding:24px;text-align:center;border:1px solid #bbf7d0;">
+            <div style="font-size:2rem;font-weight:700;color:#15803d;">{{ number_format($totalPsks) }}</div>
+            <div style="font-size:0.9rem;color:#166534;margin-top:4px;">Total PSKS {{ $tahun }}</div>
+        </div>
+        @if($kisData)
+        <div style="background:#fdf4ff;border-radius:12px;padding:24px;text-align:center;border:1px solid #e9d5ff;">
+            <div style="font-size:2rem;font-weight:700;color:#7c3aed;">{{ number_format($kisData['total']) }}</div>
+            <div style="font-size:0.9rem;color:#6d28d9;margin-top:4px;">Peserta JKN/KIS per {{ $kisData['periode'] }}</div>
+        </div>
+        @endif
+        @if($dtsenData)
+        <div style="background:#fff7ed;border-radius:12px;padding:24px;text-align:center;border:1px solid #fed7aa;">
+            <div style="font-size:2rem;font-weight:700;color:#c2410c;">{{ number_format($dtsenData['total_keluarga']) }}</div>
+            <div style="font-size:0.9rem;color:#9a3412;margin-top:4px;">KK dalam DTSEN per {{ $dtsenData['periode'] }}</div>
+        </div>
+        @endif
+    </div>
+
+    {{-- PMKS PER KECAMATAN --}}
+    @if($pmksPerKecamatan->isNotEmpty())
+    <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e2e8f0;margin-bottom:32px;">
+        <div style="font-weight:600;font-size:1.1rem;margin-bottom:16px;color:#1e293b;">📊 PMKS per Kecamatan — {{ $tahun }}</div>
+        <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+                <thead>
+                    <tr style="background:#f8fafc;">
+                        <th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;color:#64748b;">Kecamatan</th>
+                        <th style="text-align:right;padding:10px 12px;border-bottom:2px solid #e2e8f0;color:#64748b;">Jumlah PMKS</th>
+                        <th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;color:#64748b;">Proporsi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @php $maxPmks = $pmksPerKecamatan->max(); @endphp
+                    @foreach($pmksPerKecamatan as $kec => $jumlah)
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                        <td style="padding:10px 12px;color:#1e293b;">{{ $kec }}</td>
+                        <td style="padding:10px 12px;text-align:right;font-weight:600;color:#1d4ed8;">{{ number_format($jumlah) }}</td>
+                        <td style="padding:10px 12px;">
+                            <div style="background:#e2e8f0;border-radius:99px;height:8px;width:100%;">
+                                <div style="background:#3b82f6;border-radius:99px;height:8px;width:{{ $maxPmks > 0 ? round($jumlah/$maxPmks*100) : 0 }}%;"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @endif
+
+    {{-- KIS DETAIL --}}
+    @if($kisData)
+    <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e2e8f0;margin-bottom:32px;">
+        <div style="font-weight:600;font-size:1.1rem;margin-bottom:16px;color:#1e293b;">💊 Kepesertaan JKN/KIS — periode {{ $kisData['periode'] }}</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;">
+            @foreach([
+                ['label'=>'PBI APBD','value'=>$kisData['pbi_apbd'],'color'=>'#1d4ed8','bg'=>'#eff6ff'],
+                ['label'=>'PBI APBN','value'=>$kisData['pbi_apbn'],'color'=>'#7c3aed','bg'=>'#fdf4ff'],
+                ['label'=>'PPU','value'=>$kisData['ppu'],'color'=>'#15803d','bg'=>'#f0fdf4'],
+                ['label'=>'PBPU','value'=>$kisData['pbpu'],'color'=>'#b45309','bg'=>'#fffbeb'],
+                ['label'=>'BP','value'=>$kisData['bp'],'color'=>'#be123c','bg'=>'#fff1f2'],
+            ] as $seg)
+            <div style="background:{{ $seg['bg'] }};border-radius:8px;padding:16px;text-align:center;">
+                <div style="font-size:1.4rem;font-weight:700;color:{{ $seg['color'] }};">{{ number_format($seg['value']) }}</div>
+                <div style="font-size:0.8rem;color:#64748b;margin-top:4px;">{{ $seg['label'] }}</div>
+            </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
+
+    {{-- DTSEN PER DESIL --}}
+    @if($dtsenData)
+    <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e2e8f0;margin-bottom:32px;">
+        <div style="font-weight:600;font-size:1.1rem;margin-bottom:4px;color:#1e293b;">📉 Data Terpadu Sosial Ekonomi Nasional (DTSEN) — periode {{ $dtsenData['periode'] }}</div>
+        <div style="font-size:0.85rem;color:#64748b;margin-bottom:16px;">Total: {{ number_format($dtsenData['total_keluarga']) }} KK / {{ number_format($dtsenData['total_individu']) }} Jiwa</div>
+        <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+                <thead>
+                    <tr style="background:#f8fafc;">
+                        <th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;color:#64748b;">Desil</th>
+                        <th style="text-align:right;padding:10px 12px;border-bottom:2px solid #e2e8f0;color:#64748b;">Jumlah KK</th>
+                        <th style="text-align:right;padding:10px 12px;border-bottom:2px solid #e2e8f0;color:#64748b;">Jumlah Jiwa</th>
+                        <th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;color:#64748b;">Proporsi KK</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @php
+                        $desilRows = [
+                            ['label'=>'Desil 1 (Termiskin)','kk'=>$dtsenData['desil1_keluarga'],'jiwa'=>$dtsenData['desil1_individu'],'color'=>'#dc2626'],
+                            ['label'=>'Desil 2','kk'=>$dtsenData['desil2_keluarga'],'jiwa'=>$dtsenData['desil2_individu'],'color'=>'#ea580c'],
+                            ['label'=>'Desil 3','kk'=>$dtsenData['desil3_keluarga'],'jiwa'=>$dtsenData['desil3_individu'],'color'=>'#d97706'],
+                            ['label'=>'Desil 4','kk'=>$dtsenData['desil4_keluarga'],'jiwa'=>$dtsenData['desil4_individu'],'color'=>'#ca8a04'],
+                            ['label'=>'Desil 5','kk'=>$dtsenData['desil5_keluarga'],'jiwa'=>$dtsenData['desil5_individu'],'color'=>'#65a30d'],
+                        ];
+                        $maxKK = max(array_column($desilRows, 'kk'));
+                    @endphp
+                    @foreach($desilRows as $row)
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                        <td style="padding:10px 12px;color:#1e293b;font-weight:500;">{{ $row['label'] }}</td>
+                        <td style="padding:10px 12px;text-align:right;font-weight:600;color:{{ $row['color'] }};">{{ number_format($row['kk']) }}</td>
+                        <td style="padding:10px 12px;text-align:right;color:#475569;">{{ number_format($row['jiwa']) }}</td>
+                        <td style="padding:10px 12px;">
+                            <div style="background:#e2e8f0;border-radius:99px;height:8px;width:100%;">
+                                <div style="background:{{ $row['color'] }};border-radius:99px;height:8px;width:{{ $maxKK > 0 ? round($row['kk']/$maxKK*100) : 0 }}%;"></div>
+                            </div>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    </div>
+    @endif
+
+    {{-- BANSOS --}}
+    @if($bansosData->isNotEmpty())
+    <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e2e8f0;">
+        <div style="font-weight:600;font-size:1.1rem;margin-bottom:16px;color:#1e293b;">🎁 Realisasi Bansos PKH & Sembako</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
+            @foreach($bansosData as $jenis => $rows)
+            <div style="border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;">
+                <div style="background:{{ $jenis === 'pkh' ? '#eff6ff' : '#f0fdf4' }};padding:12px 16px;font-weight:600;color:{{ $jenis === 'pkh' ? '#1d4ed8' : '#15803d' }};font-size:0.95rem;">
+                    {{ strtoupper($jenis) }}
+                </div>
+                <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                    <thead>
+                        <tr style="background:#f8fafc;">
+                            <th style="text-align:left;padding:8px 12px;color:#64748b;border-bottom:1px solid #e2e8f0;">Periode</th>
+                            <th style="text-align:right;padding:8px 12px;color:#64748b;border-bottom:1px solid #e2e8f0;">Penerima</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($rows->take(4) as $row)
+                        <tr style="border-bottom:1px solid #f1f5f9;">
+                            <td style="padding:8px 12px;color:#475569;">TW{{ $row->triwulan }} / {{ $row->tahun }}</td>
+                            <td style="padding:8px 12px;text-align:right;font-weight:600;color:#1e293b;">{{ number_format($row->total) }}</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            @endforeach
+        </div>
+    </div>
+    @endif
+</div>
+
 <!-- FOOTER -->
 <footer>
     <strong>Dinas Sosial Kabupaten Buleleng</strong><br>
