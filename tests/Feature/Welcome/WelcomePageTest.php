@@ -68,7 +68,7 @@ it('halaman utama menampilkan tabel pmks per kecamatan', function () {
 
     $this->get('/')
         ->assertOk()
-        ->assertSee('PMKS per Kecamatan')
+        ->assertSee('Rekap per Kecamatan')
         ->assertSee('Buleleng');
 });
 

@@ -591,36 +591,94 @@
         @endif
     </div>
 
-    {{-- PMKS PER KECAMATAN --}}
-    @if($pmksPerKecamatan->isNotEmpty())
+    {{-- REKAP PER KECAMATAN & DESA (ACCORDION) --}}
+    @if($kecamatanData->isNotEmpty())
     <div style="background:#fff;border-radius:12px;padding:24px;border:1px solid #e2e8f0;margin-bottom:32px;">
-        <div style="font-weight:600;font-size:1.1rem;margin-bottom:16px;color:#1e293b;">📊 PMKS per Kecamatan — {{ $tahun }}</div>
+        <div style="font-weight:600;font-size:1.1rem;margin-bottom:4px;color:#1e293b;">📊 Rekap per Kecamatan & Desa — {{ $tahun }}</div>
+        <div style="font-size:0.85rem;color:#64748b;margin-bottom:16px;">Klik baris kecamatan untuk melihat detail per desa</div>
+
+        <style>
+            .acc-header { cursor:pointer; user-select:none; transition:background 0.15s; }
+            .acc-header:hover { background:#f1f5f9 !important; }
+            .acc-body { display:none; }
+            .acc-body.open { display:table-row-group; }
+            .acc-arrow { transition:transform 0.2s; display:inline-block; }
+            .acc-arrow.open { transform:rotate(90deg); }
+        </style>
+
         <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.88rem;" id="tbl-rekap">
                 <thead>
                     <tr style="background:#f8fafc;">
-                        <th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;color:#64748b;">Kecamatan</th>
-                        <th style="text-align:right;padding:10px 12px;border-bottom:2px solid #e2e8f0;color:#64748b;">Jumlah PMKS</th>
-                        <th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;color:#64748b;">Proporsi</th>
+                        <th style="text-align:left;padding:10px 12px;border-bottom:2px solid #e2e8f0;color:#64748b;min-width:180px;">Wilayah</th>
+                        <th style="text-align:right;padding:10px 12px;border-bottom:2px solid #e2e8f0;color:#1d4ed8;">PMKS</th>
+                        <th style="text-align:right;padding:10px 12px;border-bottom:2px solid #e2e8f0;color:#15803d;">PSKS</th>
                     </tr>
                 </thead>
+                @foreach($kecamatanData as $i => $kec)
+                {{-- Baris Kecamatan --}}
                 <tbody>
-                    @php $maxPmks = $pmksPerKecamatan->max(); @endphp
-                    @foreach($pmksPerKecamatan as $kec => $jumlah)
-                    <tr style="border-bottom:1px solid #f1f5f9;">
-                        <td style="padding:10px 12px;color:#1e293b;">{{ $kec }}</td>
-                        <td style="padding:10px 12px;text-align:right;font-weight:600;color:#1d4ed8;">{{ number_format($jumlah) }}</td>
-                        <td style="padding:10px 12px;">
-                            <div style="background:#e2e8f0;border-radius:99px;height:8px;width:100%;">
-                                <div style="background:#3b82f6;border-radius:99px;height:8px;width:{{ $maxPmks > 0 ? round($jumlah/$maxPmks*100) : 0 }}%;"></div>
-                            </div>
+                <tr class="acc-header"
+                    style="background:#f0f9ff;border-bottom:1px solid #bae6fd;font-weight:600;"
+                    onclick="toggleAcc('kec-{{ $i }}')">
+                    <td style="padding:11px 12px;color:#0369a1;">
+                        <span class="acc-arrow" id="arrow-kec-{{ $i }}">▶</span>
+                        &nbsp;{{ $kec['nama'] }}
+                        <span style="font-weight:400;font-size:0.8rem;color:#64748b;margin-left:6px;">({{ $kec['total_desa'] }} desa/kel)</span>
+                    </td>
+                    <td style="padding:11px 12px;text-align:right;color:#1d4ed8;">{{ number_format($kec['total_pmks']) }}</td>
+                    <td style="padding:11px 12px;text-align:right;color:#15803d;">{{ number_format($kec['total_psks']) }}</td>
+                </tr>
+                </tbody>
+                {{-- Baris Desa (tersembunyi, muncul saat accordion dibuka) --}}
+                <tbody class="acc-body" id="kec-{{ $i }}">
+                    @foreach($kec['desas'] as $desa)
+                    <tr style="border-bottom:1px solid #f1f5f9;background:#fafafa;">
+                        <td style="padding:9px 12px 9px 32px;color:#334155;">
+                            {{ $desa['nama'] }}
+                            <span style="font-size:0.75rem;color:#94a3b8;margin-left:4px;">{{ $desa['tipe'] }}</span>
+                        </td>
+                        <td style="padding:9px 12px;text-align:right;color:#1d4ed8;">
+                            {{ $desa['total_pmks'] > 0 ? number_format($desa['total_pmks']) : '-' }}
+                        </td>
+                        <td style="padding:9px 12px;text-align:right;color:#15803d;">
+                            {{ $desa['total_psks'] > 0 ? number_format($desa['total_psks']) : '-' }}
                         </td>
                     </tr>
                     @endforeach
+                    {{-- Subtotal kecamatan --}}
+                    <tr style="background:#e0f2fe;border-bottom:2px solid #7dd3fc;font-weight:600;font-size:0.85rem;">
+                        <td style="padding:9px 12px 9px 32px;color:#0369a1;">Subtotal {{ $kec['nama'] }}</td>
+                        <td style="padding:9px 12px;text-align:right;color:#1d4ed8;">{{ number_format($kec['total_pmks']) }}</td>
+                        <td style="padding:9px 12px;text-align:right;color:#15803d;">{{ number_format($kec['total_psks']) }}</td>
+                    </tr>
                 </tbody>
+                @endforeach
+                {{-- Grand Total --}}
+                <tfoot>
+                    <tr style="background:#1e293b;color:#fff;font-weight:700;">
+                        <td style="padding:12px;color:#fff;">TOTAL KABUPATEN BULELENG</td>
+                        <td style="padding:12px;text-align:right;color:#93c5fd;">{{ number_format($kecamatanData->sum('total_pmks')) }}</td>
+                        <td style="padding:12px;text-align:right;color:#86efac;">{{ number_format($kecamatanData->sum('total_psks')) }}</td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
     </div>
+
+    <script>
+    function toggleAcc(id) {
+        var body  = document.getElementById(id);
+        var arrow = document.getElementById('arrow-' + id);
+        if (body.classList.contains('open')) {
+            body.classList.remove('open');
+            arrow.classList.remove('open');
+        } else {
+            body.classList.add('open');
+            arrow.classList.add('open');
+        }
+    }
+    </script>
     @endif
 
     {{-- KIS DETAIL --}}

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BansosMember;
 use App\Models\DtsenRekap;
+use App\Models\DtsenRekapDetail;
 use App\Models\Kecamatan;
 use App\Models\KisRekap;
 use App\Models\PmksSubmission;
@@ -37,16 +38,66 @@ class WelcomeController extends Controller
             ->where('status', 'approved')
         )->count();
 
-        // PMKS per kecamatan
-        $pmksPerKecamatan = PmksSubmission::whereHas('batch', fn ($q) => $q
-            ->where('period_year', $tahun)
-            ->where('status', 'approved')
-        )
-            ->with('village.kecamatan')
+        // ── PMKS per village (1 query) ────────────────────────────
+        $pmksPerVillage = PmksSubmission::query()
+            ->join('submission_batches', 'pmks_submissions.batch_id', '=', 'submission_batches.id')
+            ->where('submission_batches.period_year', $tahun)
+            ->where('submission_batches.status', 'approved')
+            ->whereNull('pmks_submissions.deleted_at')
+            ->selectRaw('pmks_submissions.village_id, COUNT(*) as total')
+            ->groupBy('pmks_submissions.village_id')
+            ->pluck('total', 'village_id');
+
+        // ── PSKS per village (1 query) ────────────────────────────
+        $psksPerVillage = PsksSubmission::query()
+            ->join('submission_batches', 'psks_submissions.batch_id', '=', 'submission_batches.id')
+            ->where('submission_batches.period_year', $tahun)
+            ->where('submission_batches.status', 'approved')
+            ->whereNull('psks_submissions.deleted_at')
+            ->selectRaw('psks_submissions.village_id, COUNT(*) as total')
+            ->groupBy('psks_submissions.village_id')
+            ->pluck('total', 'village_id');
+
+        // ── DTSEN per kelurahan (1 query, rekap terbaru) ──────────
+        $dtsenTerbaru = DtsenRekap::orderBy('tahun', 'desc')
+            ->orderBy('bulan', 'desc')
+            ->first();
+
+        $dtsenPerKelurahan = collect();
+        if ($dtsenTerbaru) {
+            $dtsenPerKelurahan = DtsenRekapDetail::where('dtsen_rekap_id', $dtsenTerbaru->id)
+                ->get()
+                ->keyBy('kelurahan');
+        }
+
+        // ── Data per kecamatan + desa (accordion) ─────────────────
+        $kecamatanData = Kecamatan::active()
+            ->with(['villages' => fn ($q) => $q->active()->orderBy('name')])
+            ->orderBy('name')
             ->get()
-            ->groupBy(fn ($s) => $s->village->kecamatan->name ?? 'Lainnya')
-            ->map->count()
-            ->sortDesc();
+            ->map(function ($kecamatan) use ($pmksPerVillage, $psksPerVillage, $dtsenPerKelurahan) {
+                $desas = $kecamatan->villages->map(function ($village) use ($pmksPerVillage, $psksPerVillage, $dtsenPerKelurahan) {
+                    $dtsen = $dtsenPerKelurahan->get($village->name);
+                    return [
+                        'nama'           => $village->name,
+                        'tipe'           => $village->type,
+                        'total_pmks'     => $pmksPerVillage[$village->id] ?? 0,
+                        'total_psks'     => $psksPerVillage[$village->id] ?? 0,
+                        'dtsen_keluarga' => $dtsen?->jumlah_keluarga ?? 0,
+                        'dtsen_individu' => $dtsen?->jumlah_individu ?? 0,
+                    ];
+                });
+
+                return [
+                    'nama'           => $kecamatan->name,
+                    'total_desa'     => $desas->count(),
+                    'total_pmks'     => $desas->sum('total_pmks'),
+                    'total_psks'     => $desas->sum('total_psks'),
+                    'dtsen_keluarga' => $desas->sum('dtsen_keluarga'),
+                    'dtsen_individu' => $desas->sum('dtsen_individu'),
+                    'desas'          => $desas,
+                ];
+            });
 
         // ── KIS ───────────────────────────────────────────────────
         $kisRekap = KisRekap::orderBy('periode_tahun', 'desc')
@@ -67,13 +118,10 @@ class WelcomeController extends Controller
         }
 
         // ── DTSEN ─────────────────────────────────────────────────
-        $dtsenRekap = DtsenRekap::with('details')
-            ->orderBy('tahun', 'desc')
-            ->orderBy('bulan', 'desc')
-            ->first();
-
-        $dtsenData = null;
+        $dtsenRekap = $dtsenTerbaru;
+        $dtsenData  = null;
         if ($dtsenRekap) {
+            $dtsenRekap->load('details');
             $d = $dtsenRekap->details;
             $dtsenData = [
                 'periode'         => $dtsenRekap->bulan . '/' . $dtsenRekap->tahun,
@@ -102,6 +150,9 @@ class WelcomeController extends Controller
             ->get()
             ->groupBy('jenis_bansos');
 
+        // pmksPerKecamatan tetap ada untuk backward compat test
+        $pmksPerKecamatan = $kecamatanData->pluck('total_pmks', 'nama')->sortDesc();
+
         return view('welcome', compact(
             'pmksCategories',
             'psksCategories',
@@ -110,6 +161,7 @@ class WelcomeController extends Controller
             'totalPmks',
             'totalPsks',
             'pmksPerKecamatan',
+            'kecamatanData',
             'kisData',
             'dtsenData',
             'bansosData',
