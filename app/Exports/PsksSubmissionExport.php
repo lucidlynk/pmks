@@ -23,6 +23,8 @@ class PsksSubmissionExport implements
     WithColumnWidths,
     WithTitle
 {
+    private int $no = 0;
+
     public function __construct(
         private readonly ?int $villageId = null,
         private readonly ?int $periodYear = null,
@@ -79,8 +81,7 @@ class PsksSubmissionExport implements
 
     public function map($row): array
     {
-        static $no = 0;
-        $no++;
+        $this->no++;
 
         // Ambil data subjek
         $subjectName     = '-';
@@ -97,7 +98,7 @@ class PsksSubmissionExport implements
         }
 
         return [
-            $no,
+            $this->no,
             $row->subject_type === 'person' ? 'Individu' : 'Lembaga',
             $subjectName,
             $subjectIdentity,

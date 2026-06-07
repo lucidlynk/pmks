@@ -22,6 +22,8 @@ class PmksSubmissionExport implements
     WithColumnWidths,
     WithTitle
 {
+    private int $no = 0;
+
     public function __construct(
         private readonly ?int $villageId = null,
         private readonly ?int $periodYear = null,
@@ -80,11 +82,10 @@ class PmksSubmissionExport implements
 
     public function map($row): array
     {
-        static $no = 0;
-        $no++;
+        $this->no++;
 
         return [
-            $no,
+            $this->no,
             $row->resident?->nik ?? '-',
             $row->resident?->name ?? '-',
             $row->resident?->birth_place ?? '-',
