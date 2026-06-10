@@ -43,6 +43,13 @@ return [
             'serve' => true,
             'throw' => false,
             'report' => false,
+            // Pastikan directory selalu 0755 agar queue worker (lucidlynk) bisa baca
+            // file upload dari PHP-FPM (www-data). Tanpa ini, Flysystem membuat
+            // directory 'private' dengan 0700 sehingga worker tidak bisa akses.
+            'permissions' => [
+                'file' => ['public' => 0644, 'private' => 0644],
+                'dir'  => ['public' => 0755, 'private' => 0755],
+            ],
         ],
 
         'public' => [
