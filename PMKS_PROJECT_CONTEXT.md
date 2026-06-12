@@ -203,11 +203,7 @@ selain `php artisan optimize:clear`.
 - Masalah: Flysystem membuat directory upload baru (`pmks-imports`, `psks-imports`) dengan permission `0700` karena `visibility('private')` di FileUpload — worker yang jalan sebagai `lucidlynk` tidak bisa baca file yang di-upload PHP-FPM (`www-data`)
 - Solusi: tambah `permissions.dir.private = 0755` di disk `local`
 - **PENTING:** Directory yang sudah terlanjur dibuat dengan `0700` perlu di-fix manual:
-  ```bash
-  sudo chmod 755 storage/app/private/pmks-imports
-  sudo chmod 755 storage/app/private/psks-imports
-  ```
-  Jalankan ini di pmks-app saat deploy ke production!
+  **Catatan:** chmod manual tidak diperlukan di production karena direktori `pmks-imports` dan `psks-imports` belum pernah dibuat sebelum config fix ini masuk. Direktori baru akan otomatis dibuat dengan `0755` saat import pertama dijalankan.
 
 #### Dokumen Tambahan
 - `penggunaan_import_pmks_psks.md` — panduan lengkap cara membuat file CSV untuk import (format, validasi, contoh, kesalahan umum)
@@ -264,7 +260,7 @@ Rate limit: 60 request/menit per IP
 | Import CSV PMKS & PSKS | Tinggi | SELESAI sesi 6 |
 | Widget filter tahun hardcode now()->year | Rendah | Belum |
 | HasRoleAccess trait dead code | Rendah | Belum |
-| chmod 755 pmks-imports & psks-imports di production | **Tinggi** | **Belum — wajib saat deploy sesi 6** |
+| chmod 755 pmks-imports & psks-imports di production | Tinggi | TIDAK PERLU — direktori belum pernah dibuat, config 0755 sudah aktif |
 | Akses Import Bansos per role | Sedang | SELESAI sesi 7 |
 
 ---
@@ -345,7 +341,7 @@ cd /DATA/coding/laravel/projects/pmks-dev && npx repomix --output repomix-output
 
 Status saat ini: 248/248 test pass. Commit terakhir sesi 7: 38fa1c7 — live production.
 Sesi 6 & 7 sudah di-deploy ke pmks-app.
-**WAJIB saat deploy berikutnya:** jalankan `sudo chmod 755 storage/app/private/pmks-imports` dan `sudo chmod 755 storage/app/private/psks-imports` di pmks-app (dari sesi 6, belum pernah dijalankan).
+**chmod pmks/psks-imports:** Tidak perlu dijalankan. Direktori belum pernah dibuat di production, dan `config/filesystems.php` sudah mengatur `dir.private = 0755` sehingga direktori baru otomatis dibuat dengan permission yang benar.
 **WAJIB setiap deploy:** `sudo systemctl restart php8.3-fpm` karena OPcache `validate_timestamps=Off`.
 
 ---
