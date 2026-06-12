@@ -31,17 +31,32 @@ class ViewPmksImport extends ViewRecord
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
                 ->action(function () {
-                    return response()->streamDownload(function () {
+                    $isKabupaten = $this->record->isKabupatenMode();
+
+                    return response()->streamDownload(function () use ($isKabupaten) {
                         $handle = fopen('php://output', 'w');
-                        // BOM UTF-8 agar Excel baca dengan benar
                         fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
-                        fputcsv($handle, ['nik', 'nama', 'tgl_lahir', 'jenis_kelamin', 'kode_kategori', 'catatan', 'jenis_disabilitas'], ';');
-                        // Contoh data
-                        fputcsv($handle, ['5171234567890001', 'I WAYAN CONTOH', '15-08-1985', 'L', 'PMKS-24', 'Fakir miskin wilayah pesisir', ''], ';');
-                        fputcsv($handle, ['5171234567890002', 'NI MADE CONTOH', '20-03-1990', 'P', 'PMKS-23', '', ''], ';');
-                        fputcsv($handle, ['5171234567890003', 'I MADE DISABILITAS', '10-05-2008', 'L', 'PMKS-05', '', 'fisik|mental'], ';');
+
+                        if ($isKabupaten) {
+                            fputcsv($handle, [
+                                'kode_desa', 'nik', 'nama', 'tgl_lahir',
+                                'jenis_kelamin', 'kode_kategori', 'catatan', 'jenis_disabilitas',
+                            ], ';');
+                            fputcsv($handle, ['5171', '5171234567890001', 'I WAYAN CONTOH', '15-08-1985', 'L', 'PMKS-24', 'Fakir miskin', ''], ';');
+                            fputcsv($handle, ['5171', '5171234567890002', 'NI MADE CONTOH', '20-03-1990', 'P', 'PMKS-23', '', ''], ';');
+                            fputcsv($handle, ['5172', '5172234567890003', 'I MADE DISABILITAS', '10-05-2008', 'L', 'PMKS-05', '', 'fisik|mental'], ';');
+                        } else {
+                            fputcsv($handle, [
+                                'nik', 'nama', 'tgl_lahir',
+                                'jenis_kelamin', 'kode_kategori', 'catatan', 'jenis_disabilitas',
+                            ], ';');
+                            fputcsv($handle, ['5171234567890001', 'I WAYAN CONTOH', '15-08-1985', 'L', 'PMKS-24', 'Fakir miskin wilayah pesisir', ''], ';');
+                            fputcsv($handle, ['5171234567890002', 'NI MADE CONTOH', '20-03-1990', 'P', 'PMKS-23', '', ''], ';');
+                            fputcsv($handle, ['5171234567890003', 'I MADE DISABILITAS', '10-05-2008', 'L', 'PMKS-05', '', 'fisik|mental'], ';');
+                        }
+
                         fclose($handle);
-                    }, 'template-import-pmks.csv', [
+                    }, $isKabupaten ? 'template-import-pmks-kabupaten.csv' : 'template-import-pmks.csv', [
                         'Content-Type' => 'text/csv; charset=UTF-8',
                     ]);
                 }),
@@ -103,17 +118,30 @@ class ViewPmksImport extends ViewRecord
     {
         return $schema->components([
 
-            Section::make('Informasi Batch')
+            Section::make('Informasi Import')
                 ->columns(3)
                 ->schema([
-                    TextEntry::make('submissionBatch.village.kecamatan.name')
-                        ->label('Kecamatan'),
+                    TextEntry::make('cakupan')
+                        ->label('Cakupan')
+                        ->getStateUsing(fn ($record) => $record->isKabupatenMode()
+                            ? 'Seluruh Kabupaten Buleleng'
+                            : ($record->submissionBatch?->village?->kecamatan?->name
+                                . ' › ' . $record->submissionBatch?->village?->name)
+                        ),
 
-                    TextEntry::make('submissionBatch.village.name')
-                        ->label('Desa / Kelurahan'),
+                    TextEntry::make('desa_atau_mode')
+                        ->label('Desa / Mode')
+                        ->getStateUsing(fn ($record) => $record->isKabupatenMode()
+                            ? 'Kabupaten (multi-desa)'
+                            : ($record->submissionBatch?->village?->name ?? '-')
+                        ),
 
-                    TextEntry::make('submissionBatch.period_year')
+                    TextEntry::make('tahun_periode')
                         ->label('Tahun Periode')
+                        ->getStateUsing(fn ($record) => $record->isKabupatenMode()
+                            ? $record->period_year
+                            : $record->submissionBatch?->period_year
+                        )
                         ->weight(FontWeight::Bold),
                 ]),
 

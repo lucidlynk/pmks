@@ -14,6 +14,21 @@ class CreatePsksImport extends CreateRecord
     {
         $data['created_by'] = auth()->id();
         $data['status']     = 'pending';
+
+        // Non-admin selalu per_desa
+        if (!auth()->user()?->isAdminDinsos()) {
+            $data['import_mode'] = 'per_desa';
+        }
+
+        $data['import_mode'] = $data['import_mode'] ?? 'per_desa';
+
+        if ($data['import_mode'] === 'kabupaten') {
+            $data['submission_batch_id'] = null;
+        } else {
+            $data['import_mode']  = 'per_desa';
+            $data['period_year']  = null;
+        }
+
         return $data;
     }
 

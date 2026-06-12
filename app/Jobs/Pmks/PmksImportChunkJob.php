@@ -2,10 +2,13 @@
 
 namespace App\Jobs\Pmks;
 
+use App\Enums\BatchStatus;
 use App\Models\PmksCategory;
 use App\Models\PmksImport;
 use App\Models\PmksSubmission;
 use App\Models\Resident;
+use App\Models\SubmissionBatch;
+use App\Models\Village;
 use Carbon\Carbon;
 use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
@@ -36,11 +39,22 @@ class PmksImportChunkJob implements ShouldQueue
     {
         if ($this->batch()?->cancelled()) return;
 
-        $import    = PmksImport::findOrFail($this->importId);
-        $batch     = $import->submissionBatch;
-        $villageId = $batch->village_id;
-        $importedBy = $import->created_by;
-        $batchId   = $import->submission_batch_id;
+        $import      = PmksImport::findOrFail($this->importId);
+        $isKabupaten = $import->isKabupatenMode();
+        $importedBy  = $import->created_by;
+
+        // Mode per_desa: village & batch tetap dari record import
+        $fixedVillageId = null;
+        $fixedBatchId   = null;
+        if (!$isKabupaten) {
+            $batch = $import->submissionBatch;
+            $fixedVillageId = $batch->village_id;
+            $fixedBatchId   = $import->submission_batch_id;
+        }
+
+        // Cache pencarian village+batch untuk mode kabupaten agar tidak query berulang
+        // Format: kode_desa => ['village_id' => X, 'batch_id' => Y] | null (tidak ditemukan)
+        $batchCache = [];
 
         $success = 0;
         $failed  = 0;
@@ -50,43 +64,89 @@ class PmksImportChunkJob implements ShouldQueue
             $rowNum = $this->startRow + $index;
 
             try {
-                // Pastikan minimal 5 kolom (nik, nama, tgl_lahir, jenis_kelamin, kode_kategori)
-                if (count($row) < 5) {
+                // ── Mode kabupaten: resolve village & batch dari kode_desa ─────
+                if ($isKabupaten) {
+                    if (count($row) < 1) {
+                        $failed++;
+                        $errors[] = "Baris {$rowNum}: Baris kosong";
+                        continue;
+                    }
+
+                    $kodeDesa = trim($row[0] ?? '');
+
+                    if (empty($kodeDesa)) {
+                        $failed++;
+                        $errors[] = "Baris {$rowNum}: Kolom kode_desa kosong — wajib diisi untuk mode Kabupaten";
+                        continue;
+                    }
+
+                    if (!array_key_exists($kodeDesa, $batchCache)) {
+                        $batchCache[$kodeDesa] = $this->resolveVillageAndBatch(
+                            $kodeDesa, $import->period_year
+                        );
+                    }
+
+                    $cached = $batchCache[$kodeDesa];
+
+                    if ($cached === null) {
+                        $failed++;
+                        $errors[] = "Baris {$rowNum}: Kode desa '{$kodeDesa}' tidak ditemukan di master data";
+                        continue;
+                    }
+
+                    if ($cached['batch_id'] === null) {
+                        $failed++;
+                        $errors[] = "Baris {$rowNum}: Batch PMKS untuk desa '{$cached['village_name']}' "
+                            . "tahun {$import->period_year} belum dibuat atau bukan berstatus Draft/Direvisi";
+                        continue;
+                    }
+
+                    $villageId = $cached['village_id'];
+                    $batchId   = $cached['batch_id'];
+                    $offset    = 1; // kolom bergeser +1 karena kode_desa di index 0
+                } else {
+                    $villageId = $fixedVillageId;
+                    $batchId   = $fixedBatchId;
+                    $offset    = 0;
+                }
+
+                // ── Pastikan minimal 5 kolom data (di luar kode_desa jika ada) ─
+                if (count($row) < $offset + 5) {
                     $failed++;
-                    $errors[] = "Baris {$rowNum}: Format tidak lengkap (minimal 5 kolom)";
+                    $errors[] = "Baris {$rowNum}: Format tidak lengkap (minimal " . ($offset + 5) . " kolom)";
                     continue;
                 }
 
-                $nik            = trim($row[0] ?? '');
-                $nama           = trim($row[1] ?? '');
-                $tglLahir       = trim($row[2] ?? '');
-                $jenisKelamin   = strtoupper(trim($row[3] ?? ''));
-                $kodeKategori   = strtoupper(trim($row[4] ?? ''));
-                $catatan        = trim($row[5] ?? '') ?: null;
-                $rawDisabilitas = strtolower(trim($row[6] ?? ''));
+                $nik            = trim($row[$offset + 0] ?? '');
+                $nama           = trim($row[$offset + 1] ?? '');
+                $tglLahir       = trim($row[$offset + 2] ?? '');
+                $jenisKelamin   = strtoupper(trim($row[$offset + 3] ?? ''));
+                $kodeKategori   = strtoupper(trim($row[$offset + 4] ?? ''));
+                $catatan        = trim($row[$offset + 5] ?? '') ?: null;
+                $rawDisabilitas = strtolower(trim($row[$offset + 6] ?? ''));
 
-                // ── Validasi NIK ──────────────────────────────────────────
+                // ── Validasi NIK ──────────────────────────────────────────────
                 if (strlen($nik) !== 16 || !ctype_digit($nik)) {
                     $failed++;
                     $errors[] = "Baris {$rowNum}: NIK tidak valid — '{$nik}' (harus 16 digit angka)";
                     continue;
                 }
 
-                // ── Validasi nama ─────────────────────────────────────────
+                // ── Validasi nama ─────────────────────────────────────────────
                 if (empty($nama)) {
                     $failed++;
                     $errors[] = "Baris {$rowNum} (NIK: {$nik}): Nama tidak boleh kosong";
                     continue;
                 }
 
-                // ── Validasi jenis kelamin ────────────────────────────────
+                // ── Validasi jenis kelamin ────────────────────────────────────
                 if (!in_array($jenisKelamin, ['L', 'P'])) {
                     $failed++;
                     $errors[] = "Baris {$rowNum} (NIK: {$nik}): Jenis kelamin harus L atau P, ditemukan '{$jenisKelamin}'";
                     continue;
                 }
 
-                // ── Validasi tanggal lahir ────────────────────────────────
+                // ── Validasi tanggal lahir ────────────────────────────────────
                 $birthDate = null;
                 if (!empty($tglLahir)) {
                     try {
@@ -98,7 +158,7 @@ class PmksImportChunkJob implements ShouldQueue
                     }
                 }
 
-                // ── Validasi kode kategori ────────────────────────────────
+                // ── Validasi kode kategori ────────────────────────────────────
                 $category = PmksCategory::active()->where('code', $kodeKategori)->first();
                 if (!$category) {
                     $failed++;
@@ -106,7 +166,7 @@ class PmksImportChunkJob implements ShouldQueue
                     continue;
                 }
 
-                // ── Validasi jenis disabilitas ────────────────────────────
+                // ── Validasi jenis disabilitas ────────────────────────────────
                 $disabilityArr = null;
                 if (in_array($category->code, self::DISABILITY_CODES)) {
                     if (empty($rawDisabilitas)) {
@@ -128,7 +188,7 @@ class PmksImportChunkJob implements ShouldQueue
                     $disabilityArr = $parsed;
                 }
 
-                // ── Cari atau buat Resident ───────────────────────────────
+                // ── Cari atau buat Resident ───────────────────────────────────
                 $resident = Resident::where('nik', $nik)->first();
 
                 if (!$resident) {
@@ -143,7 +203,7 @@ class PmksImportChunkJob implements ShouldQueue
                     ]);
                 }
 
-                // ── Validasi usia ─────────────────────────────────────────
+                // ── Validasi usia ─────────────────────────────────────────────
                 if ($category->hasAgeRestriction() && $resident->birth_date) {
                     $age = $resident->birth_date->age;
 
@@ -157,7 +217,7 @@ class PmksImportChunkJob implements ShouldQueue
                     }
                 }
 
-                // ── Validasi gender ───────────────────────────────────────
+                // ── Validasi gender ───────────────────────────────────────────
                 if ($category->hasGenderRestriction() && $resident->gender !== $category->gender_restriction) {
                     $genderLabel = $resident->gender === 'L' ? 'Laki-laki' : 'Perempuan';
                     $failed++;
@@ -165,7 +225,7 @@ class PmksImportChunkJob implements ShouldQueue
                     continue;
                 }
 
-                // ── Cek duplikat dalam batch ──────────────────────────────
+                // ── Cek duplikat dalam batch ──────────────────────────────────
                 $exists = PmksSubmission::where('batch_id', $batchId)
                     ->where('resident_id', $resident->id)
                     ->where('category_id', $category->id)
@@ -177,7 +237,7 @@ class PmksImportChunkJob implements ShouldQueue
                     continue;
                 }
 
-                // ── Simpan submission ─────────────────────────────────────
+                // ── Simpan submission ─────────────────────────────────────────
                 PmksSubmission::create([
                     'batch_id'         => $batchId,
                     'village_id'       => $villageId,
@@ -201,7 +261,7 @@ class PmksImportChunkJob implements ShouldQueue
             }
         }
 
-        // ── Update statistik import ───────────────────────────────────────
+        // ── Update statistik import ───────────────────────────────────────────
         DB::table('pmks_imports')
             ->where('id', $this->importId)
             ->update([
@@ -215,5 +275,31 @@ class PmksImportChunkJob implements ShouldQueue
                 'error_summary' => array_merge($existing, $errors),
             ]);
         }
+    }
+
+    /**
+     * Resolve village_id dan batch_id berdasarkan kode desa + tahun periode.
+     * Return null jika desa tidak ditemukan.
+     * Return ['village_id' => X, 'batch_id' => null, 'village_name' => '...'] jika batch tidak ada/bukan Draft.
+     * Return ['village_id' => X, 'batch_id' => Y, 'village_name' => '...'] jika berhasil.
+     */
+    private function resolveVillageAndBatch(string $kodeDesa, int $periodYear): ?array
+    {
+        $village = Village::where('code', $kodeDesa)->first();
+
+        if (!$village) {
+            return null;
+        }
+
+        $batch = SubmissionBatch::where('village_id', $village->id)
+            ->where('period_year', $periodYear)
+            ->whereIn('status', [BatchStatus::DRAFT->value, BatchStatus::REVISED->value])
+            ->first();
+
+        return [
+            'village_id'   => $village->id,
+            'village_name' => $village->name,
+            'batch_id'     => $batch?->id,
+        ];
     }
 }

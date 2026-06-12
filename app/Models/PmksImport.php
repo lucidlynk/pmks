@@ -12,6 +12,8 @@ class PmksImport extends Model
 
     protected $fillable = [
         'submission_batch_id',
+        'import_mode',
+        'period_year',
         'original_filename',
         'file_path',
         'status',
@@ -29,6 +31,7 @@ class PmksImport extends Model
         'total_rows'   => 'integer',
         'success_rows' => 'integer',
         'failed_rows'  => 'integer',
+        'period_year'  => 'integer',
         'error_summary' => 'array',
         'started_at'   => 'datetime',
         'finished_at'  => 'datetime',
@@ -88,8 +91,17 @@ class PmksImport extends Model
         };
     }
 
+    public function isKabupatenMode(): bool
+    {
+        return $this->import_mode === 'kabupaten';
+    }
+
     public function getBatchLabelAttribute(): string
     {
+        if ($this->isKabupatenMode()) {
+            return "Seluruh Kabupaten — {$this->period_year}";
+        }
+
         $batch = $this->submissionBatch;
         if (!$batch) return '-';
 

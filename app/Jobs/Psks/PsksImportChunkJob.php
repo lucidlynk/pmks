@@ -2,11 +2,14 @@
 
 namespace App\Jobs\Psks;
 
+use App\Enums\BatchStatus;
 use App\Models\Institution;
 use App\Models\PsksCategory;
 use App\Models\PsksImport;
 use App\Models\PsksSubmission;
 use App\Models\Resident;
+use App\Models\SubmissionBatch;
+use App\Models\Village;
 use Carbon\Carbon;
 use Illuminate\Bus\Batchable;
 use Illuminate\Bus\Queueable;
@@ -38,11 +41,21 @@ class PsksImportChunkJob implements ShouldQueue
     {
         if ($this->batch()?->cancelled()) return;
 
-        $import     = PsksImport::findOrFail($this->importId);
-        $batch      = $import->submissionBatch;
-        $villageId  = $batch->village_id;
-        $importedBy = $import->created_by;
-        $batchId    = $import->submission_batch_id;
+        $import      = PsksImport::findOrFail($this->importId);
+        $isKabupaten = $import->isKabupatenMode();
+        $importedBy  = $import->created_by;
+
+        // Mode per_desa: village & batch tetap dari record import
+        $fixedVillageId = null;
+        $fixedBatchId   = null;
+        if (!$isKabupaten) {
+            $batch = $import->submissionBatch;
+            $fixedVillageId = $batch->village_id;
+            $fixedBatchId   = $import->submission_batch_id;
+        }
+
+        // Cache pencarian village+batch untuk mode kabupaten
+        $batchCache = [];
 
         $success = 0;
         $failed  = 0;
@@ -52,22 +65,69 @@ class PsksImportChunkJob implements ShouldQueue
             $rowNum = $this->startRow + $index;
 
             try {
-                if (count($row) < 4) {
+                // ── Mode kabupaten: resolve village & batch dari kode_desa ─────
+                if ($isKabupaten) {
+                    if (count($row) < 1) {
+                        $failed++;
+                        $errors[] = "Baris {$rowNum}: Baris kosong";
+                        continue;
+                    }
+
+                    $kodeDesa = trim($row[0] ?? '');
+
+                    if (empty($kodeDesa)) {
+                        $failed++;
+                        $errors[] = "Baris {$rowNum}: Kolom kode_desa kosong — wajib diisi untuk mode Kabupaten";
+                        continue;
+                    }
+
+                    if (!array_key_exists($kodeDesa, $batchCache)) {
+                        $batchCache[$kodeDesa] = $this->resolveVillageAndBatch(
+                            $kodeDesa, $import->period_year
+                        );
+                    }
+
+                    $cached = $batchCache[$kodeDesa];
+
+                    if ($cached === null) {
+                        $failed++;
+                        $errors[] = "Baris {$rowNum}: Kode desa '{$kodeDesa}' tidak ditemukan di master data";
+                        continue;
+                    }
+
+                    if ($cached['batch_id'] === null) {
+                        $failed++;
+                        $errors[] = "Baris {$rowNum}: Batch PSKS untuk desa '{$cached['village_name']}' "
+                            . "tahun {$import->period_year} belum dibuat atau bukan berstatus Draft/Direvisi";
+                        continue;
+                    }
+
+                    $villageId = $cached['village_id'];
+                    $batchId   = $cached['batch_id'];
+                    $offset    = 1; // kolom bergeser +1 karena kode_desa di index 0
+                } else {
+                    $villageId = $fixedVillageId;
+                    $batchId   = $fixedBatchId;
+                    $offset    = 0;
+                }
+
+                // ── Pastikan minimal 4 kolom data ─────────────────────────────
+                if (count($row) < $offset + 4) {
                     $failed++;
-                    $errors[] = "Baris {$rowNum}: Format tidak lengkap (minimal 4 kolom)";
+                    $errors[] = "Baris {$rowNum}: Format tidak lengkap (minimal " . ($offset + 4) . " kolom)";
                     continue;
                 }
 
-                $kodeKategori = strtoupper(trim($row[0] ?? ''));
-                $nik          = trim($row[1] ?? '');
-                $nama         = trim($row[2] ?? '');
-                $tglLahir     = trim($row[3] ?? '');
-                $jenisKelamin = strtoupper(trim($row[4] ?? ''));
-                $tipeLembaga  = strtolower(trim($row[5] ?? ''));
-                $noReg        = trim($row[6] ?? '') ?: null;
-                $catatan      = trim($row[7] ?? '') ?: null;
+                $kodeKategori = strtoupper(trim($row[$offset + 0] ?? ''));
+                $nik          = trim($row[$offset + 1] ?? '');
+                $nama         = trim($row[$offset + 2] ?? '');
+                $tglLahir     = trim($row[$offset + 3] ?? '');
+                $jenisKelamin = strtoupper(trim($row[$offset + 4] ?? ''));
+                $tipeLembaga  = strtolower(trim($row[$offset + 5] ?? ''));
+                $noReg        = trim($row[$offset + 6] ?? '') ?: null;
+                $catatan      = trim($row[$offset + 7] ?? '') ?: null;
 
-                // ── Validasi kode kategori ────────────────────────────────
+                // ── Validasi kode kategori ────────────────────────────────────
                 $category = PsksCategory::active()->where('code', $kodeKategori)->first();
                 if (!$category) {
                     $failed++;
@@ -75,7 +135,7 @@ class PsksImportChunkJob implements ShouldQueue
                     continue;
                 }
 
-                // ── Proses berdasarkan subject_type ───────────────────────
+                // ── Proses berdasarkan subject_type ───────────────────────────
                 if ($category->subject_type === 'person') {
                     [$subjectType, $subject, $errMsg] = $this->resolveResident(
                         $rowNum, $nik, $nama, $tglLahir, $jenisKelamin, $villageId
@@ -92,7 +152,7 @@ class PsksImportChunkJob implements ShouldQueue
                     continue;
                 }
 
-                // ── Cek duplikat dalam batch ──────────────────────────────
+                // ── Cek duplikat dalam batch ──────────────────────────────────
                 $exists = PsksSubmission::where('batch_id', $batchId)
                     ->where('subject_type', $subjectType)
                     ->where('subject_id', $subject->id)
@@ -106,7 +166,7 @@ class PsksImportChunkJob implements ShouldQueue
                     continue;
                 }
 
-                // ── Simpan submission ─────────────────────────────────────
+                // ── Simpan submission ─────────────────────────────────────────
                 PsksSubmission::create([
                     'batch_id'     => $batchId,
                     'village_id'   => $villageId,
@@ -130,7 +190,7 @@ class PsksImportChunkJob implements ShouldQueue
             }
         }
 
-        // ── Update statistik import ───────────────────────────────────────
+        // ── Update statistik import ───────────────────────────────────────────
         DB::table('psks_imports')
             ->where('id', $this->importId)
             ->update([
@@ -146,7 +206,33 @@ class PsksImportChunkJob implements ShouldQueue
         }
     }
 
-    // ── Resolve Resident (person) ─────────────────────────────────────────
+    /**
+     * Resolve village_id dan batch_id berdasarkan kode desa + tahun periode.
+     * Return null jika desa tidak ditemukan.
+     * Return ['village_id' => X, 'batch_id' => null, 'village_name' => '...'] jika batch tidak ada/bukan Draft.
+     * Return ['village_id' => X, 'batch_id' => Y, 'village_name' => '...'] jika berhasil.
+     */
+    private function resolveVillageAndBatch(string $kodeDesa, int $periodYear): ?array
+    {
+        $village = Village::where('code', $kodeDesa)->first();
+
+        if (!$village) {
+            return null;
+        }
+
+        $batch = SubmissionBatch::where('village_id', $village->id)
+            ->where('period_year', $periodYear)
+            ->whereIn('status', [BatchStatus::DRAFT->value, BatchStatus::REVISED->value])
+            ->first();
+
+        return [
+            'village_id'   => $village->id,
+            'village_name' => $village->name,
+            'batch_id'     => $batch?->id,
+        ];
+    }
+
+    // ── Resolve Resident (person) ─────────────────────────────────────────────
 
     private function resolveResident(
         int $rowNum, string $nik, string $nama,
@@ -190,7 +276,7 @@ class PsksImportChunkJob implements ShouldQueue
         return ['person', $resident, null];
     }
 
-    // ── Resolve Institution (lembaga) ─────────────────────────────────────
+    // ── Resolve Institution (lembaga) ─────────────────────────────────────────
 
     private function resolveInstitution(
         int $rowNum, string $nama, string $tipeLembaga,
@@ -207,7 +293,6 @@ class PsksImportChunkJob implements ShouldQueue
             ];
         }
 
-        // Cari lembaga by nama + village (case-insensitive)
         $institution = Institution::where('village_id', $villageId)
             ->whereRaw('LOWER(name) = ?', [strtolower($nama)])
             ->first();

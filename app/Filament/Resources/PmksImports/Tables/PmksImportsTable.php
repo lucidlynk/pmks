@@ -14,18 +14,30 @@ class PmksImportsTable
     {
         return $table
             ->columns([
-                TextColumn::make('submissionBatch.village.name')
+                TextColumn::make('desa')
                     ->label('Desa')
-                    ->searchable()
-                    ->sortable(),
+                    ->getStateUsing(fn (PmksImport $record) => $record->isKabupatenMode()
+                        ? 'Seluruh Kabupaten'
+                        : ($record->submissionBatch?->village?->name ?? '-')
+                    )
+                    ->searchable(false)
+                    ->sortable(false),
 
-                TextColumn::make('submissionBatch.village.kecamatan.name')
+                TextColumn::make('kecamatan')
                     ->label('Kecamatan')
+                    ->getStateUsing(fn (PmksImport $record) => $record->isKabupatenMode()
+                        ? '-'
+                        : ($record->submissionBatch?->village?->kecamatan?->name ?? '-')
+                    )
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                TextColumn::make('submissionBatch.period_year')
+                TextColumn::make('tahun')
                     ->label('Tahun')
-                    ->sortable(),
+                    ->getStateUsing(fn (PmksImport $record) => $record->isKabupatenMode()
+                        ? $record->period_year
+                        : $record->submissionBatch?->period_year
+                    )
+                    ->sortable(false),
 
                 TextColumn::make('original_filename')
                     ->label('File')
@@ -73,6 +85,12 @@ class PmksImportsTable
                         'processing' => 'Sedang Diproses',
                         'done'       => 'Selesai',
                         'failed'     => 'Gagal',
+                    ]),
+                SelectFilter::make('import_mode')
+                    ->label('Mode Import')
+                    ->options([
+                        'per_desa'  => 'Per Desa',
+                        'kabupaten' => 'Seluruh Kabupaten',
                     ]),
             ])
             ->recordActions([

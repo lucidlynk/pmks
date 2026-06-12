@@ -12,6 +12,8 @@ class PsksImport extends Model
 
     protected $fillable = [
         'submission_batch_id',
+        'import_mode',
+        'period_year',
         'original_filename',
         'file_path',
         'status',
@@ -29,6 +31,7 @@ class PsksImport extends Model
         'total_rows'    => 'integer',
         'success_rows'  => 'integer',
         'failed_rows'   => 'integer',
+        'period_year'   => 'integer',
         'error_summary' => 'array',
         'started_at'    => 'datetime',
         'finished_at'   => 'datetime',
@@ -86,6 +89,11 @@ class PsksImport extends Model
             'failed'     => 'danger',
             default      => 'gray',
         };
+    }
+
+    public function isKabupatenMode(): bool
+    {
+        return $this->import_mode === 'kabupaten';
     }
 
     public function isPending(): bool    { return $this->status === 'pending'; }

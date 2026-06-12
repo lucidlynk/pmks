@@ -31,21 +31,36 @@ class ViewPsksImport extends ViewRecord
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
                 ->action(function () {
-                    return response()->streamDownload(function () {
+                    $isKabupaten = $this->record->isKabupatenMode();
+
+                    return response()->streamDownload(function () use ($isKabupaten) {
                         $handle = fopen('php://output', 'w');
                         fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
-                        fputcsv($handle, [
-                            'kode_kategori', 'nik', 'nama', 'tgl_lahir',
-                            'jenis_kelamin', 'tipe_lembaga', 'nomor_registrasi', 'catatan',
-                        ], ';');
-                        // Contoh baris individu
-                        fputcsv($handle, ['PSKS-J-01', '5171234567890001', 'I WAYAN RELAWAN', '10-05-1990', 'L', '', '', 'PSM aktif sejak 2020'], ';');
-                        fputcsv($handle, ['PSKS-J-03', '5171234567890002', 'NI MADE RELAWATI', '20-03-1988', 'P', '', '', ''], ';');
-                        // Contoh baris lembaga
-                        fputcsv($handle, ['PSKS-L-01', '', 'Karang Taruna Bhuana Utama', '', '', 'karang_taruna', 'KT-001/2020', ''], ';');
-                        fputcsv($handle, ['PSKS-L-05', '', 'PKK Desa Banyuning', '', '', 'pkk', '', 'PKK aktif'], ';');
+
+                        if ($isKabupaten) {
+                            fputcsv($handle, [
+                                'kode_desa', 'kode_kategori', 'nik', 'nama', 'tgl_lahir',
+                                'jenis_kelamin', 'tipe_lembaga', 'nomor_registrasi', 'catatan',
+                            ], ';');
+                            // Contoh baris individu
+                            fputcsv($handle, ['5171', 'PSKS-J-01', '5171234567890001', 'I WAYAN RELAWAN', '10-05-1990', 'L', '', '', 'PSM aktif'], ';');
+                            fputcsv($handle, ['5171', 'PSKS-J-03', '5171234567890002', 'NI MADE RELAWATI', '20-03-1988', 'P', '', '', ''], ';');
+                            // Contoh baris lembaga
+                            fputcsv($handle, ['5172', 'PSKS-L-01', '', 'Karang Taruna Maju', '', '', 'karang_taruna', 'KT-001/2020', ''], ';');
+                            fputcsv($handle, ['5172', 'PSKS-L-05', '', 'PKK Desa Banyuning', '', '', 'pkk', '', 'PKK aktif'], ';');
+                        } else {
+                            fputcsv($handle, [
+                                'kode_kategori', 'nik', 'nama', 'tgl_lahir',
+                                'jenis_kelamin', 'tipe_lembaga', 'nomor_registrasi', 'catatan',
+                            ], ';');
+                            fputcsv($handle, ['PSKS-J-01', '5171234567890001', 'I WAYAN RELAWAN', '10-05-1990', 'L', '', '', 'PSM aktif sejak 2020'], ';');
+                            fputcsv($handle, ['PSKS-J-03', '5171234567890002', 'NI MADE RELAWATI', '20-03-1988', 'P', '', '', ''], ';');
+                            fputcsv($handle, ['PSKS-L-01', '', 'Karang Taruna Bhuana Utama', '', '', 'karang_taruna', 'KT-001/2020', ''], ';');
+                            fputcsv($handle, ['PSKS-L-05', '', 'PKK Desa Banyuning', '', '', 'pkk', '', 'PKK aktif'], ';');
+                        }
+
                         fclose($handle);
-                    }, 'template-import-psks.csv', [
+                    }, $isKabupaten ? 'template-import-psks-kabupaten.csv' : 'template-import-psks.csv', [
                         'Content-Type' => 'text/csv; charset=UTF-8',
                     ]);
                 }),
@@ -107,17 +122,30 @@ class ViewPsksImport extends ViewRecord
     {
         return $schema->components([
 
-            Section::make('Informasi Batch')
+            Section::make('Informasi Import')
                 ->columns(3)
                 ->schema([
-                    TextEntry::make('submissionBatch.village.kecamatan.name')
-                        ->label('Kecamatan'),
+                    TextEntry::make('cakupan')
+                        ->label('Cakupan')
+                        ->getStateUsing(fn ($record) => $record->isKabupatenMode()
+                            ? 'Seluruh Kabupaten Buleleng'
+                            : ($record->submissionBatch?->village?->kecamatan?->name
+                                . ' › ' . $record->submissionBatch?->village?->name)
+                        ),
 
-                    TextEntry::make('submissionBatch.village.name')
-                        ->label('Desa / Kelurahan'),
+                    TextEntry::make('desa_atau_mode')
+                        ->label('Desa / Mode')
+                        ->getStateUsing(fn ($record) => $record->isKabupatenMode()
+                            ? 'Kabupaten (multi-desa)'
+                            : ($record->submissionBatch?->village?->name ?? '-')
+                        ),
 
-                    TextEntry::make('submissionBatch.period_year')
+                    TextEntry::make('tahun_periode')
                         ->label('Tahun Periode')
+                        ->getStateUsing(fn ($record) => $record->isKabupatenMode()
+                            ? $record->period_year
+                            : $record->submissionBatch?->period_year
+                        )
                         ->weight(FontWeight::Bold),
                 ]),
 
