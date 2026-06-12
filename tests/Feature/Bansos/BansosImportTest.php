@@ -33,11 +33,11 @@ it('verifikator bisa akses halaman import bansos', function () {
          ->assertOk();
 });
 
-it('operator desa tidak bisa akses halaman import bansos', function () {
+it('operator desa bisa akses halaman import bansos', function () {
     $user = User::factory()->operatorDesa()->create();
     $this->actingAs($user)
          ->get('/admin/bansos-imports')
-         ->assertForbidden();
+         ->assertOk();
 });
 
 // ================================================================
@@ -168,9 +168,12 @@ it('chunk job normalize jenis bansos dari csv', function () {
 // POLICY
 // ================================================================
 
-it('hanya admin dinsos yang bisa download bansos', function () {
-    $admin = User::factory()->adminDinsos()->create();
-    $op    = User::factory()->operatorBidang()->create();
+it('akses download bansos sesuai role', function () {
+    $admin      = User::factory()->adminDinsos()->create();
+    $opBidang   = User::factory()->operatorBidang()->create();
+    $opDesa     = User::factory()->operatorDesa()->create();
+    $staf       = User::factory()->stafDinsos()->create();
+    $verifikator = User::factory()->verifikator()->create();
 
     $import = BansosImport::create([
         'jenis_bansos'      => 'pkh',
@@ -184,7 +187,10 @@ it('hanya admin dinsos yang bisa download bansos', function () {
     ]);
 
     expect($admin->can('download', $import))->toBeTrue()
-        ->and($op->can('download', $import))->toBeFalse();
+        ->and($opBidang->can('download', $import))->toBeTrue()
+        ->and($opDesa->can('download', $import))->toBeTrue()
+        ->and($staf->can('download', $import))->toBeTrue()
+        ->and($verifikator->can('download', $import))->toBeFalse();
 });
 
 // ================================================================

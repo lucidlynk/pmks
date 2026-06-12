@@ -79,7 +79,7 @@ class ViewBansosImport extends ViewRecord
                 ->label('Download CSV')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('success')
-                ->visible(fn () => auth()->user()?->hasRole('admin_dinsos') && $this->record->isDone())
+                ->visible(fn () => auth()->user()?->can('download', $this->record))
                 ->action(function () {
                     $import = $this->record;
 

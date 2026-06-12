@@ -68,4 +68,11 @@ class UserFactory extends Factory
             $user->assignRole(UserRole::OPERATOR_BIDANG->value);
         });
     }
+
+    public function stafDinsos(): static
+    {
+        return $this->afterCreating(function (User $user) {
+            $user->assignRole(UserRole::STAF_DINSOS->value);
+        });
+    }
 }

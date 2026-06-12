@@ -14,6 +14,8 @@ class BansosImportPolicy
             UserRole::ADMIN_DINSOS->value,
             UserRole::OPERATOR_BIDANG->value,
             UserRole::VERIFIKATOR->value,
+            UserRole::OPERATOR_DESA->value,
+            UserRole::STAF_DINSOS->value,
         ]);
     }
 
@@ -23,15 +25,14 @@ class BansosImportPolicy
             UserRole::ADMIN_DINSOS->value,
             UserRole::OPERATOR_BIDANG->value,
             UserRole::VERIFIKATOR->value,
+            UserRole::OPERATOR_DESA->value,
+            UserRole::STAF_DINSOS->value,
         ]);
     }
 
     public function create(User $user): bool
     {
-        return $user->hasAnyRole([
-            UserRole::ADMIN_DINSOS->value,
-            UserRole::OPERATOR_BIDANG->value,
-        ]);
+        return $user->hasRole(UserRole::ADMIN_DINSOS->value);
     }
 
     public function delete(User $user, BansosImport $import): bool
@@ -42,7 +43,11 @@ class BansosImportPolicy
 
     public function download(User $user, BansosImport $import): bool
     {
-        return $user->hasRole(UserRole::ADMIN_DINSOS->value)
-            && $import->isDone();
+        return $user->hasAnyRole([
+            UserRole::ADMIN_DINSOS->value,
+            UserRole::OPERATOR_BIDANG->value,
+            UserRole::STAF_DINSOS->value,
+            UserRole::OPERATOR_DESA->value,
+        ]) && $import->isDone();
     }
 }

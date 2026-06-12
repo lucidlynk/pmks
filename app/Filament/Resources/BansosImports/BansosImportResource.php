@@ -28,15 +28,14 @@ class BansosImportResource extends Resource
             UserRole::ADMIN_DINSOS->value,
             UserRole::OPERATOR_BIDANG->value,
             UserRole::VERIFIKATOR->value,
+            UserRole::OPERATOR_DESA->value,
+            UserRole::STAF_DINSOS->value,
         ]) ?? false;
     }
 
     public static function canCreate(): bool
     {
-        return auth()->user()?->hasAnyRole([
-            UserRole::ADMIN_DINSOS->value,
-            UserRole::OPERATOR_BIDANG->value,
-        ]) ?? false;
+        return auth()->user()?->hasRole(UserRole::ADMIN_DINSOS->value) ?? false;
     }
 
     public static function getNavigationLabel(): string
