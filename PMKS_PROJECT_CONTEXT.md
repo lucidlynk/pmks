@@ -1,7 +1,7 @@
 # PMKS PROJECT CONTEXT
 > Dokumen ini dibuat untuk memudahkan kolaborasi dengan AI manapun.
 > Upload dokumen ini di awal sesi agar AI langsung paham konteks penuh proyek.
-> Terakhir diperbarui: Juni 2026 (sesi 7 — Perluas akses Import Bansos)
+> Terakhir diperbarui: Juni 2026 (sesi 8 — Import PMKS/PSKS mode Seluruh Kabupaten)
 
 ---
 
@@ -145,6 +145,48 @@ Shortcut createOption di Select:
 - Bansos: Import CSV PKH & Sembako
 - Surat Dinas, API Publik Sanctum (8 endpoint), Dashboard Publik
 
+### Sesi 8 — LIVE PRODUCTION
+
+#### Import PMKS/PSKS Mode Seluruh Kabupaten — commit 08c7a40
+
+**Masalah sebelumnya:** Import CSV PMKS/PSKS mengharuskan memilih satu batch desa — tidak bisa import sekaligus untuk seluruh kabupaten.
+
+**Perubahan:**
+
+| File | Perubahan |
+|---|---|
+| `database/migrations/2026_06_12_000001_...` | `submission_batch_id` nullable, tambah kolom `import_mode` (enum) + `period_year` |
+| `app/Models/PmksImport.php` | Tambah `import_mode`, `period_year` ke fillable, method `isKabupatenMode()` |
+| `app/Models/PsksImport.php` | Sama dengan PmksImport |
+| `app/Filament/Resources/PmksImports/Schemas/PmksImportForm.php` | Radio mode (per_desa/kabupaten) hanya untuk admin; show/hide batch select / period_year |
+| `app/Filament/Resources/PsksImports/Schemas/PsksImportForm.php` | Sama |
+| `app/Jobs/Pmks/PmksImportChunkJob.php` | Mode kabupaten: resolve village+batch per baris via `kode_desa`, cache in-memory |
+| `app/Jobs/Psks/PsksImportChunkJob.php` | Sama |
+| `app/Filament/Resources/PmksImports/Pages/ViewPmksImport.php` | Infolist handle null batch, template download smart per mode |
+| `app/Filament/Resources/PsksImports/Pages/ViewPsksImport.php` | Sama |
+| `app/Filament/Resources/PmksImports/Tables/PmksImportsTable.php` | Kolom Desa/Tahun pakai `getStateUsing`, filter mode import |
+| `app/Filament/Resources/PsksImports/Tables/PsksImportsTable.php` | Sama |
+| `app/Filament/Resources/PmksImports/Pages/CreatePmksImport.php` | `mutateFormDataBeforeCreate` handle mode, null-kan submission_batch_id jika kabupaten |
+| `app/Filament/Resources/PsksImports/Pages/CreatePsksImport.php` | Sama |
+
+**Format CSV mode Kabupaten:**
+
+PMKS: `kode_desa;nik;nama;tgl_lahir;jenis_kelamin;kode_kategori;catatan;jenis_disabilitas`
+
+PSKS: `kode_desa;kode_kategori;nik;nama;tgl_lahir;jenis_kelamin;tipe_lembaga;nomor_registrasi;catatan`
+
+`kode_desa` = nilai kolom `code` di tabel `villages` (bukan nama desa).
+
+**Cara kerja:**
+- Admin pilih mode "Seluruh Kabupaten" → pilih tahun periode → upload CSV
+- Sistem per-baris: cari `Village` by `code` → cari batch `draft/revised` untuk `village_id + period_year`
+- Cache hasil lookup per `kode_desa` agar tidak query berulang
+- Error jelas: desa tidak ditemukan / batch belum dibuat / batch bukan Draft/Direvisi
+
+**Backward-compatible:** Mode `per_desa` (existing) tidak terpengaruh.
+
+---
+
 ### Sesi 7 — LIVE PRODUCTION
 
 #### Perluas Akses Import Bansos — commit 38fa1c7
@@ -262,6 +304,7 @@ Rate limit: 60 request/menit per IP
 | HasRoleAccess trait dead code | Rendah | Belum |
 | chmod 755 pmks-imports & psks-imports di production | Tinggi | TIDAK PERLU — direktori belum pernah dibuat, config 0755 sudah aktif |
 | Akses Import Bansos per role | Sedang | SELESAI sesi 7 |
+| Import PMKS/PSKS mode Seluruh Kabupaten | Tinggi | SELESAI sesi 8 |
 
 ---
 
@@ -271,6 +314,7 @@ Rate limit: 60 request/menit per IP
 2. Notifikasi email saat batch diapprove/request revisi
 3. Export PDF ringkasan PMKS/PSKS per kecamatan
 4. ~~Import massal PMKS/PSKS dari template Excel~~ → **SELESAI sesi 6 (CSV)**
+5. ~~Import mode Seluruh Kabupaten~~ → **SELESAI sesi 8**
 
 ---
 
@@ -291,6 +335,13 @@ app/Http/Controllers/Api/StatistikController.php   (N+1 fix sesi 5)
 app/Exports/PmksSubmissionExport.php               (static $no fix sesi 5)
 app/Exports/PsksSubmissionExport.php               (static $no fix sesi 5)
 app/Filament/Resources/PsksSubmissions/Schemas/PsksSubmissionForm.php  (shortcut sesi 5)
+
+--- IMPORT MODE KABUPATEN (sesi 8) ---
+database/migrations/2026_06_12_000001_make_submission_batch_nullable_in_imports_tables.php
+app/Jobs/Pmks/PmksImportChunkJob.php               (resolve village+batch per baris, cache in-memory)
+app/Jobs/Psks/PsksImportChunkJob.php               (sama)
+app/Filament/Resources/PmksImports/Schemas/PmksImportForm.php  (radio mode per_desa/kabupaten)
+app/Filament/Resources/PsksImports/Schemas/PsksImportForm.php  (sama)
 
 --- IMPORT PMKS/PSKS (sesi 6) ---
 app/Models/PmksImport.php
@@ -339,8 +390,8 @@ Generate repomix:
 cd /DATA/coding/laravel/projects/pmks-dev && npx repomix --output repomix-output-dev.xml
 ```
 
-Status saat ini: 248/248 test pass. Commit terakhir sesi 7: 38fa1c7 — live production.
-Sesi 6 & 7 sudah di-deploy ke pmks-app.
+Status saat ini: 248/248 test pass. Commit terakhir sesi 8: 08c7a40 — live production.
+Sesi 6, 7 & 8 sudah di-deploy ke pmks-app.
 **chmod pmks/psks-imports:** Tidak perlu dijalankan. Direktori belum pernah dibuat di production, dan `config/filesystems.php` sudah mengatur `dir.private = 0755` sehingga direktori baru otomatis dibuat dengan permission yang benar.
 **WAJIB setiap deploy:** `sudo systemctl restart php8.3-fpm` karena OPcache `validate_timestamps=Off`.
 
