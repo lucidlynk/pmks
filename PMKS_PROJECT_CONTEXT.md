@@ -1,7 +1,7 @@
 # PMKS PROJECT CONTEXT
 > Dokumen ini dibuat untuk memudahkan kolaborasi dengan AI manapun.
 > Upload dokumen ini di awal sesi agar AI langsung paham konteks penuh proyek.
-> Terakhir diperbarui: Juni 2026 (sesi 6 — Import CSV PMKS & PSKS, fix filesystem permissions)
+> Terakhir diperbarui: Juni 2026 (sesi 7 — Perluas akses Import Bansos)
 
 ---
 
@@ -145,6 +145,33 @@ Shortcut createOption di Select:
 - Bansos: Import CSV PKH & Sembako
 - Surat Dinas, API Publik Sanctum (8 endpoint), Dashboard Publik
 
+### Sesi 7 — LIVE PRODUCTION
+
+#### Perluas Akses Import Bansos — commit 38fa1c7
+
+**Perubahan akses `BansosImportResource`:**
+
+| Aksi | Admin | Op. Bidang | Verifikator | Op. Desa | Staf Dinsos |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Menu & lihat list | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Lihat detail | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Upload CSV | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Download CSV | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Hapus | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+- File: `app/Policies/BansosImportPolicy.php`
+- File: `app/Filament/Resources/BansosImports/BansosImportResource.php`
+- File: `app/Filament/Resources/BansosImports/Pages/ViewBansosImport.php`
+- Tombol download pakai `auth()->user()?->can('download', $record)` (delegate ke policy)
+- Tambah factory `stafDinsos()` di `database/factories/UserFactory.php`
+- Update test di `tests/Feature/Bansos/BansosImportTest.php`
+
+**Catatan infrastruktur ditemukan:** OPcache aktif di PHP-FPM dengan `validate_timestamps=Off`.
+Setiap deploy kode ke dev maupun production **wajib** jalankan `sudo systemctl restart php8.3-fpm`
+selain `php artisan optimize:clear`.
+
+---
+
 ### Sesi 6 — LIVE PRODUCTION
 
 #### Fitur 1 — Import CSV PMKS
@@ -238,6 +265,7 @@ Rate limit: 60 request/menit per IP
 | Widget filter tahun hardcode now()->year | Rendah | Belum |
 | HasRoleAccess trait dead code | Rendah | Belum |
 | chmod 755 pmks-imports & psks-imports di production | **Tinggi** | **Belum — wajib saat deploy sesi 6** |
+| Akses Import Bansos per role | Sedang | SELESAI sesi 7 |
 
 ---
 
@@ -315,9 +343,10 @@ Generate repomix:
 cd /DATA/coding/laravel/projects/pmks-dev && npx repomix --output repomix-output-dev.xml
 ```
 
-Status saat ini: 248/248 test pass. Commit terakhir sesi 5: 7cb3be2 — live production.
-Sesi 6: Import CSV PMKS & PSKS selesai di pmks-dev. Belum di-deploy ke pmks-app.
-**WAJIB saat deploy sesi 6:** jalankan `sudo chmod 755 storage/app/private/pmks-imports` dan `sudo chmod 755 storage/app/private/psks-imports` di pmks-app setelah `git pull`.
+Status saat ini: 248/248 test pass. Commit terakhir sesi 7: 38fa1c7 — live production.
+Sesi 6 & 7 sudah di-deploy ke pmks-app.
+**WAJIB saat deploy berikutnya:** jalankan `sudo chmod 755 storage/app/private/pmks-imports` dan `sudo chmod 755 storage/app/private/psks-imports` di pmks-app (dari sesi 6, belum pernah dijalankan).
+**WAJIB setiap deploy:** `sudo systemctl restart php8.3-fpm` karena OPcache `validate_timestamps=Off`.
 
 ---
 
