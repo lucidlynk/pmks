@@ -4,9 +4,11 @@ namespace App\Filament\Resources\DtsenRequests\Pages;
 
 use App\Enums\DtsenStatus;
 use App\Enums\UserRole;
+use App\Exports\DtsenRequestExport;
 use App\Filament\Resources\DtsenRequests\DtsenRequestResource;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
+use Maatwebsite\Excel\Facades\Excel;
 use Filament\Forms\Components\FileUpload;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -126,8 +128,23 @@ class ViewDtsenRequest extends ViewRecord
             $this->processAction(),
             $this->uploadPdfAction(),
             $this->downloadPdfAction(),
+            $this->downloadExcelAction(),
             $this->cancelAction(),
         ];
+    }
+
+    private function downloadExcelAction(): Action
+    {
+        return Action::make('downloadExcel')
+            ->label('Download Excel')
+            ->icon('heroicon-o-table-cells')
+            ->color('success')
+            ->action(function (): mixed {
+                $request  = $this->record;
+                $filename = 'DTSEN_' . str_replace('/', '-', $request->reference_number) . '.xlsx';
+
+                return Excel::download(new DtsenRequestExport($request), $filename);
+            });
     }
 
     private function submitAction(): Action
