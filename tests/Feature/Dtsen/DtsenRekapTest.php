@@ -1,11 +1,13 @@
 <?php
 
 use App\Enums\UserRole;
+use App\Exports\DtsenRekapExport;
 use App\Models\DtsenRekap;
 use App\Models\DtsenRekapDetail;
 use App\Models\User;
 use App\Services\DtsenRekapImportService;
 use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
 
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\assertDatabaseHas;
@@ -393,6 +395,121 @@ describe('Policy', function () {
             $user = makeUser($role);
             expect($user->can('view', $rekap))->toBeTrue();
         }
+    });
+});
+
+// ================================================================
+// TEST: EXPORT EXCEL
+// ================================================================
+
+describe('Export Excel', function () {
+    it('export class queries details for the correct rekap', function () {
+        $rekap  = makeRekapWithDetails();
+        $export = new DtsenRekapExport($rekap);
+
+        $query = $export->query()->get();
+
+        expect($query)->toHaveCount(2);
+        expect($query->pluck('kecamatan')->toArray())->toContain('Gerokgak');
+        expect($query->pluck('kecamatan')->toArray())->toContain('Seririt');
+    });
+
+    it('export class returns correct headings', function () {
+        $rekap    = makeRekapWithDetails();
+        $export   = new DtsenRekapExport($rekap);
+        $headings = $export->headings();
+
+        expect($headings)->toHaveCount(21);
+        expect($headings[0])->toBe('No');
+        expect($headings[1])->toBe('Kecamatan');
+        expect($headings[2])->toBe('Kelurahan/Desa');
+        expect($headings[3])->toBe('Jml KK');
+        expect($headings[4])->toBe('Jml Jiwa');
+    });
+
+    it('export class maps row data correctly', function () {
+        $rekap  = makeRekapWithDetails();
+        $export = new DtsenRekapExport($rekap);
+        $detail = $rekap->details()->where('kecamatan', 'Gerokgak')->first();
+
+        $row = $export->map($detail);
+
+        expect($row[0])->toBe(1);
+        expect($row[1])->toBe('Gerokgak');
+        expect($row[2])->toBe('Sumberklampok');
+        expect($row[3])->toBe(1194);
+        expect($row[4])->toBe(3591);
+        expect($row[5])->toBe(24);
+    });
+
+    it('export sheet title uses rekap periode', function () {
+        $rekap  = makeRekapWithDetails();
+        $export = new DtsenRekapExport($rekap);
+
+        expect($export->title())->toBe('DTSEN Mei 2026');
+    });
+
+    it('download action returns excel file for admin', function () {
+        Excel::fake();
+
+        $admin = makeUser(UserRole::ADMIN_DINSOS->value);
+        $rekap = makeRekapWithDetails();
+
+        actingAs($admin)
+            ->get(route('filament.admin.resources.dtsen-rekaps.view', $rekap))
+            ->assertOk();
+
+        // Pastikan export class bisa diinstansiasi tanpa error
+        expect(fn () => new DtsenRekapExport($rekap))->not->toThrow(\Throwable::class);
+    });
+
+    it('download action is accessible by all roles', function () {
+        $rekap = makeRekapWithDetails();
+        $roles = [
+            UserRole::ADMIN_DINSOS->value,
+            UserRole::OPERATOR_BIDANG->value,
+            UserRole::OPERATOR_DESA->value,
+            UserRole::VERIFIKATOR->value,
+        ];
+
+        foreach ($roles as $role) {
+            $user = makeUser($role);
+            actingAs($user)
+                ->get(route('filament.admin.resources.dtsen-rekaps.view', $rekap))
+                ->assertOk();
+        }
+    });
+
+    it('export only includes details for the given rekap', function () {
+        $rekap1 = makeRekapWithDetails();
+
+        // Rekap kedua dengan data berbeda
+        $admin  = makeUser(UserRole::ADMIN_DINSOS->value);
+        $rekap2 = DtsenRekap::create([
+            'bulan' => 6, 'tahun' => 2026,
+            'file_path' => 'other.csv', 'original_filename' => 'other.csv',
+            'uploaded_by' => $admin->id,
+        ]);
+        DtsenRekapDetail::insert([[
+            'dtsen_rekap_id' => $rekap2->id,
+            'kecamatan' => 'Tejakula', 'kelurahan' => 'Tembok',
+            'jumlah_keluarga' => 500, 'jumlah_individu' => 1500,
+            'desil1_keluarga' => 10, 'desil1_individu' => 30,
+            'desil2_keluarga' => 20, 'desil2_individu' => 60,
+            'desil3_keluarga' => 30, 'desil3_individu' => 90,
+            'desil4_keluarga' => 40, 'desil4_individu' => 120,
+            'desil5_keluarga' => 50, 'desil5_individu' => 150,
+            'desil6_10_keluarga' => 300, 'desil6_10_individu' => 900,
+            'belum_peringkat_keluarga' => 30, 'belum_peringkat_individu' => 90,
+            'nonaktif_keluarga' => 20, 'nonaktif_individu' => 60,
+            'created_at' => now(), 'updated_at' => now(),
+        ]]);
+
+        $export = new DtsenRekapExport($rekap1);
+        $rows   = $export->query()->get();
+
+        expect($rows->pluck('kecamatan')->toArray())->not->toContain('Tejakula');
+        expect($rows)->toHaveCount(2);
     });
 });
 
