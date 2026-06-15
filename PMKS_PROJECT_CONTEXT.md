@@ -1,7 +1,7 @@
 # PMKS PROJECT CONTEXT
 > Dokumen ini dibuat untuk memudahkan kolaborasi dengan AI manapun.
 > Upload dokumen ini di awal sesi agar AI langsung paham konteks penuh proyek.
-> Terakhir diperbarui: Juni 2026 (sesi 8 — Import PMKS/PSKS mode Seluruh Kabupaten)
+> Terakhir diperbarui: Juni 2026 (sesi 9 — Download Excel DTSEN Rekap & Permohonan)
 
 ---
 
@@ -144,6 +144,36 @@ Shortcut createOption di Select:
 - KIS: Rekap Agregat, Upload CSV PBI APBD background, Cek Kepesertaan per NIK
 - Bansos: Import CSV PKH & Sembako
 - Surat Dinas, API Publik Sanctum (8 endpoint), Dashboard Publik
+
+### Sesi 9 — LIVE PRODUCTION
+
+#### Download Excel DTSEN Rekap — commit a837ac2
+
+**Fitur:** Tombol "Download Excel" di halaman view Rekap DTSEN (`/admin/dtsen-rekaps/{id}`).
+
+| File | Perubahan |
+|---|---|
+| `app/Exports/DtsenRekapExport.php` | Export baru: semua detail per desa/kelurahan, 21 kolom (kecamatan, kelurahan, KK, jiwa, desil 1–5, D6-10, belum peringkat, nonaktif), header biru bold |
+| `app/Filament/Resources/DtsenRekaps/Pages/ViewDtsenRekap.php` | Tambah `getHeaderActions()` dengan `Action::make('download_excel')` warna hijau |
+| `tests/Feature/Dtsen/DtsenRekapTest.php` | +7 test (headings, mapping, sheet title, scope per rekap, akses semua role) |
+
+Filename: `DTSEN_[Periode].xlsx` (contoh: `DTSEN_Mei_2026.xlsx`)
+
+#### Download Excel Permohonan DTSEN — commit 3df0b5e
+
+**Fitur:** Tombol "Download Excel" di halaman view Permohonan SUKET DTSEN (`/admin/dtsen-requests/{id}`), berisi daftar warga yang diajukan.
+
+| File | Perubahan |
+|---|---|
+| `app/Exports/DtsenRequestExport.php` | Export baru: info permohonan (no. referensi, desa, keperluan, status) di baris 1–4, tabel warga (No, NIK, Nama, Tempat Lahir, Tanggal Lahir, Jenis Kelamin) mulai baris 6 |
+| `app/Filament/Resources/DtsenRequests/Pages/ViewDtsenRequest.php` | Tambah `downloadExcelAction()` private method, disisipkan ke `getHeaderActions()` |
+| `tests/Feature/Dtsen/DtsenRequestTest.php` | +7 test (headings, info rows, sheet title, mapping data, scope per request, filename, akses semua role) |
+
+Filename: `DTSEN_[No-Referensi].xlsx` (contoh: `DTSEN_DTSEN-2026-06-0001.xlsx`)
+
+**Total test sesi 9:** 262/262 pass (naik dari 248).
+
+---
 
 ### Sesi 8 — LIVE PRODUCTION
 
@@ -305,6 +335,8 @@ Rate limit: 60 request/menit per IP
 | chmod 755 pmks-imports & psks-imports di production | Tinggi | TIDAK PERLU — direktori belum pernah dibuat, config 0755 sudah aktif |
 | Akses Import Bansos per role | Sedang | SELESAI sesi 7 |
 | Import PMKS/PSKS mode Seluruh Kabupaten | Tinggi | SELESAI sesi 8 |
+| Download Excel Rekap DTSEN | Sedang | SELESAI sesi 9 |
+| Download Excel Permohonan DTSEN | Sedang | SELESAI sesi 9 |
 
 ---
 
@@ -336,6 +368,12 @@ app/Exports/PmksSubmissionExport.php               (static $no fix sesi 5)
 app/Exports/PsksSubmissionExport.php               (static $no fix sesi 5)
 app/Filament/Resources/PsksSubmissions/Schemas/PsksSubmissionForm.php  (shortcut sesi 5)
 
+--- DOWNLOAD EXCEL DTSEN (sesi 9) ---
+app/Exports/DtsenRekapExport.php           (export rekap DTSEN per desa — sesi 9)
+app/Exports/DtsenRequestExport.php         (export daftar warga permohonan DTSEN — sesi 9)
+app/Filament/Resources/DtsenRekaps/Pages/ViewDtsenRekap.php    (tombol download Excel — sesi 9)
+app/Filament/Resources/DtsenRequests/Pages/ViewDtsenRequest.php (tombol download Excel — sesi 9)
+
 --- IMPORT MODE KABUPATEN (sesi 8) ---
 database/migrations/2026_06_12_000001_make_submission_batch_nullable_in_imports_tables.php
 app/Jobs/Pmks/PmksImportChunkJob.php               (resolve village+batch per baris, cache in-memory)
@@ -364,7 +402,7 @@ penggunaan_import_pmks_psks.md                     (panduan user)
 ```bash
 # DEVELOPMENT
 cd /DATA/coding/laravel/projects/pmks-dev
-php artisan test                          # full suite (248 test)
+php artisan test                          # full suite (262 test)
 php artisan test tests/Feature/Api/       # test API saja
 php artisan test tests/Feature/Exports/   # test export saja
 
@@ -390,7 +428,7 @@ Generate repomix:
 cd /DATA/coding/laravel/projects/pmks-dev && npx repomix --output repomix-output-dev.xml
 ```
 
-Status saat ini: 248/248 test pass. Commit terakhir sesi 8: 08c7a40 — live production.
+Status saat ini: 262/262 test pass. Commit terakhir sesi 9: 3df0b5e — live production.
 Sesi 6, 7 & 8 sudah di-deploy ke pmks-app.
 **chmod pmks/psks-imports:** Tidak perlu dijalankan. Direktori belum pernah dibuat di production, dan `config/filesystems.php` sudah mengatur `dir.private = 0755` sehingga direktori baru otomatis dibuat dengan permission yang benar.
 **WAJIB setiap deploy:** `sudo systemctl restart php8.3-fpm` karena OPcache `validate_timestamps=Off`.
