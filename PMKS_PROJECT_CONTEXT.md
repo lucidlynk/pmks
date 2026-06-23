@@ -1,7 +1,7 @@
 # PMKS PROJECT CONTEXT
 > Dokumen ini dibuat untuk memudahkan kolaborasi dengan AI manapun.
 > Upload dokumen ini di awal sesi agar AI langsung paham konteks penuh proyek.
-> Terakhir diperbarui: Juni 2026 (sesi 9 — Download Excel DTSEN Rekap & Permohonan)
+> Terakhir diperbarui: Juni 2026 (sesi 10 — Rekap Bansos PKH & Sembako per Desa)
 
 ---
 
@@ -144,6 +144,28 @@ Shortcut createOption di Select:
 - KIS: Rekap Agregat, Upload CSV PBI APBD background, Cek Kepesertaan per NIK
 - Bansos: Import CSV PKH & Sembako
 - Surat Dinas, API Publik Sanctum (8 endpoint), Dashboard Publik
+
+### Sesi 10 — LIVE PRODUCTION
+
+#### Rekap Bansos PKH & Sembako per Desa — commit 8c1fd94
+
+**Fitur:** Sub-menu "Rekap Bansos" di grup navigasi "Data Bansos" — menampilkan tabel agregasi penerima PKH dan Sembako per kecamatan dan desa/kelurahan dengan filter periode.
+
+| File | Perubahan |
+|---|---|
+| `app/Filament/Pages/RekapBansos.php` | Custom Filament Page dengan `InteractsWithTable` — filter periode (tombol triwulan+tahun), 4 stat card (PKH, Sembako, Total, Jumlah Desa), tabel native Filament: search, sort, filter kecamatan, pagination (25/50/100/all), Sum summarizer, navigasi grup "Data Bansos" sort 2, semua role dapat akses |
+| `app/Exports/BansosRekapExport.php` | Export Excel 6 kolom (No, Kecamatan, Desa, PKH, Sembako, Total), header biru bold, filename `Rekap_Bansos_TW{n}_{tahun}.xlsx` |
+| `resources/views/filament/pages/rekap-bansos.blade.php` | Blade view: filter periode + stat card + `{{ $this->table }}` |
+
+**Catatan teknis:**
+- Query pakai `selectRaw` + `groupBy` di `BansosMember` — override `getTableRecordKey()` diperlukan karena tidak ada kolom `id` pada hasil agregasi
+- Key unik per baris: `kec_name||kel_name`
+- Periode otomatis pilih yang paling baru saat pertama load
+- Tombol Download Excel hanya aktif (`->visible()`) saat ada data
+
+**Total test:** 262/262 pass (tidak ada perubahan test).
+
+---
 
 ### Sesi 9 — LIVE PRODUCTION
 
@@ -337,6 +359,7 @@ Rate limit: 60 request/menit per IP
 | Import PMKS/PSKS mode Seluruh Kabupaten | Tinggi | SELESAI sesi 8 |
 | Download Excel Rekap DTSEN | Sedang | SELESAI sesi 9 |
 | Download Excel Permohonan DTSEN | Sedang | SELESAI sesi 9 |
+| Rekap Bansos PKH & Sembako per desa | Sedang | SELESAI sesi 10 |
 
 ---
 
@@ -347,6 +370,7 @@ Rate limit: 60 request/menit per IP
 3. Export PDF ringkasan PMKS/PSKS per kecamatan
 4. ~~Import massal PMKS/PSKS dari template Excel~~ → **SELESAI sesi 6 (CSV)**
 5. ~~Import mode Seluruh Kabupaten~~ → **SELESAI sesi 8**
+6. ~~Rekap Bansos PKH & Sembako per desa~~ → **SELESAI sesi 10**
 
 ---
 
@@ -367,6 +391,11 @@ app/Http/Controllers/Api/StatistikController.php   (N+1 fix sesi 5)
 app/Exports/PmksSubmissionExport.php               (static $no fix sesi 5)
 app/Exports/PsksSubmissionExport.php               (static $no fix sesi 5)
 app/Filament/Resources/PsksSubmissions/Schemas/PsksSubmissionForm.php  (shortcut sesi 5)
+
+--- REKAP BANSOS (sesi 10) ---
+app/Filament/Pages/RekapBansos.php         (halaman rekap PKH & Sembako per desa — sesi 10)
+app/Exports/BansosRekapExport.php          (export Excel rekap bansos — sesi 10)
+resources/views/filament/pages/rekap-bansos.blade.php  (blade view — sesi 10)
 
 --- DOWNLOAD EXCEL DTSEN (sesi 9) ---
 app/Exports/DtsenRekapExport.php           (export rekap DTSEN per desa — sesi 9)
@@ -428,7 +457,7 @@ Generate repomix:
 cd /DATA/coding/laravel/projects/pmks-dev && npx repomix --output repomix-output-dev.xml
 ```
 
-Status saat ini: 262/262 test pass. Commit terakhir sesi 9: 3df0b5e — live production.
+Status saat ini: 262/262 test pass. Commit terakhir sesi 10: 8c1fd94 — live production.
 Sesi 6, 7 & 8 sudah di-deploy ke pmks-app.
 **chmod pmks/psks-imports:** Tidak perlu dijalankan. Direktori belum pernah dibuat di production, dan `config/filesystems.php` sudah mengatur `dir.private = 0755` sehingga direktori baru otomatis dibuat dengan permission yang benar.
 **WAJIB setiap deploy:** `sudo systemctl restart php8.3-fpm` karena OPcache `validate_timestamps=Off`.
