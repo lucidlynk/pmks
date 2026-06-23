@@ -95,6 +95,27 @@ echo "=== PRODUCTION ===" && git -C /DATA/coding/laravel/projects/pmks-app statu
 
 ## 6. KONVENSI FILAMENT V4
 
+### ⚠️ ATURAN UTAMA UI — WAJIB UNTUK SEMUA AI & DEVELOPER
+
+**SEMUA tampilan UI HARUS menggunakan komponen Filament native.**
+**DILARANG membuat tampilan di luar ekosistem Filament** (raw HTML table, custom Tailwind div independen, CSS manual, dll).
+
+| Kebutuhan | Gunakan |
+|---|---|
+| Tabel data dengan search/sort/filter/pagination | `InteractsWithTable` + `Table` Filament, render via `{{ $this->table }}` |
+| Statistik / info card | `<x-filament::section>` atau `TextEntry` di infolist |
+| Halaman baru (custom page) | Extend `Filament\Pages\Page`, blade hanya wrapper `<x-filament-panels::page>` |
+| Form input | Filament form builder: `Schema`, `TextInput`, `Select`, `FileUpload`, dll |
+| Export file | Maatwebsite Excel + `Action` di `getHeaderActions()` |
+| Query `groupBy` tanpa `id` | Override `getTableRecordKey(Model\|array $record): string` dengan key unik |
+| Navigasi sidebar | `getNavigationGroup()`, `$navigationIcon` (Heroicon enum), `$navigationSort` |
+
+**Alasan:** Konsistensi design system, CSS terjamin via Filament (tidak perlu build Vite terpisah), responsive & dark mode otomatis, selaras dengan semua halaman lain di aplikasi ini.
+
+**Pelajaran sesi 10:** Custom HTML table yang dibuat di luar Filament tampilannya tidak konsisten dengan halaman DtsenRekap dll — user meminta diubah ke Filament native (`InteractsWithTable`).
+
+### Konvensi teknis Filament v4
+
 ```
 Section di form        -> Filament\Schemas\Components\Section (BUKAN Forms)
 infolist() signature   -> public function infolist(Schema $schema): Schema
