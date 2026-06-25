@@ -1,7 +1,7 @@
 # PMKS PROJECT CONTEXT
 > Dokumen ini dibuat untuk memudahkan kolaborasi dengan AI manapun.
 > Upload dokumen ini di awal sesi agar AI langsung paham konteks penuh proyek.
-> Terakhir diperbarui: Juni 2026 (sesi 10 — Rekap Bansos PKH & Sembako per Desa)
+> Terakhir diperbarui: Juni 2026 (sesi 11 — Fix Re-upload DTSEN Rekap)
 
 ---
 
@@ -165,6 +165,29 @@ Shortcut createOption di Select:
 - KIS: Rekap Agregat, Upload CSV PBI APBD background, Cek Kepesertaan per NIK
 - Bansos: Import CSV PKH & Sembako
 - Surat Dinas, API Publik Sanctum (8 endpoint), Dashboard Publik
+
+### Sesi 11 — LIVE PRODUCTION
+
+#### Fix Re-upload DTSEN Rekap — commit bc60f66
+
+**Masalah:** Upload ulang DTSEN untuk periode yang sudah ada menyebabkan form stuck tanpa pesan error apapun.
+
+**Root cause (dua bug sekaligus):**
+
+1. `beforeCreate()` memanggil `$this->halt()` **sebelum** `Notification::make()->send()` — di Filament v4, `halt()` langsung melempar exception sehingga notifikasi tidak pernah dieksekusi.
+2. Setelah fix pertama (gunakan `delete()`), muncul error baru: `Duplicate entry '6-2026' for key 'dtsen_rekap_periode_unique'`. Penyebab: `DtsenRekap` menggunakan `SoftDeletes` — `delete()` hanya mengisi `deleted_at`, baris tetap ada di DB dan unique constraint tetap terblokir.
+
+**Solusi:** Ubah `beforeCreate()` agar menghapus record lama (beserta detailnya) dengan `forceDelete()` sebelum create berjalan, sehingga re-upload otomatis replace data periode yang sama.
+
+| File | Perubahan |
+|---|---|
+| `app/Filament/Resources/DtsenRekaps/Pages/CreateDtsenRekap.php` | `beforeCreate()`: hapus `halt()` + notification, ganti dengan `details()->delete()` + `forceDelete()` pada record lama |
+
+**Pelajaran penting:**
+- Di Filament v4, `$this->halt()` melempar exception — kode setelahnya tidak pernah dieksekusi. Notifikasi harus dipanggil **sebelum** `halt()`.
+- Model dengan `SoftDeletes` + unique constraint DB: gunakan `forceDelete()` untuk re-insert pada key yang sama, bukan `delete()`.
+
+---
 
 ### Sesi 10 — LIVE PRODUCTION
 
@@ -381,6 +404,7 @@ Rate limit: 60 request/menit per IP
 | Download Excel Rekap DTSEN | Sedang | SELESAI sesi 9 |
 | Download Excel Permohonan DTSEN | Sedang | SELESAI sesi 9 |
 | Rekap Bansos PKH & Sembako per desa | Sedang | SELESAI sesi 10 |
+| Re-upload DTSEN rekap stuck (SoftDeletes + unique constraint) | Tinggi | SELESAI sesi 11 |
 
 ---
 
@@ -478,8 +502,8 @@ Generate repomix:
 cd /DATA/coding/laravel/projects/pmks-dev && npx repomix --output repomix-output-dev.xml
 ```
 
-Status saat ini: 262/262 test pass. Commit terakhir sesi 10: 8c1fd94 — live production.
-Sesi 6, 7 & 8 sudah di-deploy ke pmks-app.
+Status saat ini: 262/262 test pass. Commit terakhir sesi 11: bc60f66 — live production.
+Sesi 6, 7, 8, 9, 10 & 11 sudah di-deploy ke pmks-app.
 **chmod pmks/psks-imports:** Tidak perlu dijalankan. Direktori belum pernah dibuat di production, dan `config/filesystems.php` sudah mengatur `dir.private = 0755` sehingga direktori baru otomatis dibuat dengan permission yang benar.
 **WAJIB setiap deploy:** `sudo systemctl restart php8.3-fpm` karena OPcache `validate_timestamps=Off`.
 
