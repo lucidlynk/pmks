@@ -29,17 +29,13 @@ class CreateDtsenRekap extends CreateRecord
 
     protected function beforeCreate(): void
     {
-        $exists = DtsenRekap::where('bulan', $this->data['bulan'])
+        $existing = DtsenRekap::where('bulan', $this->data['bulan'])
             ->where('tahun', $this->data['tahun'])
-            ->exists();
+            ->first();
 
-        if ($exists) {
-            $this->halt();
-            Notification::make()
-                ->title('Data sudah ada')
-                ->body('Rekap DTSEN untuk periode ini sudah ada. Hapus data lama terlebih dahulu.')
-                ->danger()
-                ->send();
+        if ($existing) {
+            $existing->details()->delete();
+            $existing->delete();
         }
     }
 
