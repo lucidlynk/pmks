@@ -35,7 +35,7 @@ class CreateDtsenRekap extends CreateRecord
 
         if ($existing) {
             $existing->details()->delete();
-            $existing->delete();
+            $existing->forceDelete();
         }
     }
 
