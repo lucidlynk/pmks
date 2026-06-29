@@ -114,6 +114,19 @@ class DtsenRekap extends Model
     public function getTotalDesil5KeluargaAttribute(): int { return (int) $this->desilTotals()->d5_kk; }
     public function getTotalDesil5IndividuAttribute(): int  { return (int) $this->desilTotals()->d5_jiwa; }
 
+    // Gabungan Desil 1+2+3+4+5
+    public function getTotalDesil1Sampai5KeluargaAttribute(): int
+    {
+        $t = $this->desilTotals();
+        return (int) ($t->d1_kk + $t->d2_kk + $t->d3_kk + $t->d4_kk + $t->d5_kk);
+    }
+
+    public function getTotalDesil1Sampai5IndividuAttribute(): int
+    {
+        $t = $this->desilTotals();
+        return (int) ($t->d1_jiwa + $t->d2_jiwa + $t->d3_jiwa + $t->d4_jiwa + $t->d5_jiwa);
+    }
+
     // ================================================================
     // STATIC HELPERS
     // ================================================================

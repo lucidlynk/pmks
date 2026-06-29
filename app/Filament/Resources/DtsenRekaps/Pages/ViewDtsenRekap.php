@@ -51,43 +51,34 @@ class ViewDtsenRekap extends ViewRecord
                 ])
                 ->columns(3),
 
-            Section::make('Rekap Desil 1–5')
-                ->description('Total keluarga (KK) dan individu (jiwa) per desil kemiskinan')
+            Section::make('Total Desil 1–5')
+                ->description('Jumlah gabungan Desil 1 + Desil 2 + Desil 3 + Desil 4 + Desil 5')
                 ->schema([
-                    // Baris 1: jumlah KK per desil
-                    TextEntry::make('total_desil1_keluarga')
-                        ->label('Desil 1 — KK')
+                    TextEntry::make('total_desil1_sampai5_keluarga')
+                        ->label('Total KK (Desil 1–5)')
                         ->numeric(),
-                    TextEntry::make('total_desil2_keluarga')
-                        ->label('Desil 2 — KK')
-                        ->numeric(),
-                    TextEntry::make('total_desil3_keluarga')
-                        ->label('Desil 3 — KK')
-                        ->numeric(),
-                    TextEntry::make('total_desil4_keluarga')
-                        ->label('Desil 4 — KK')
-                        ->numeric(),
-                    TextEntry::make('total_desil5_keluarga')
-                        ->label('Desil 5 — KK')
-                        ->numeric(),
-                    // Baris 2: jumlah jiwa per desil
-                    TextEntry::make('total_desil1_individu')
-                        ->label('Desil 1 — Jiwa')
-                        ->numeric(),
-                    TextEntry::make('total_desil2_individu')
-                        ->label('Desil 2 — Jiwa')
-                        ->numeric(),
-                    TextEntry::make('total_desil3_individu')
-                        ->label('Desil 3 — Jiwa')
-                        ->numeric(),
-                    TextEntry::make('total_desil4_individu')
-                        ->label('Desil 4 — Jiwa')
-                        ->numeric(),
-                    TextEntry::make('total_desil5_individu')
-                        ->label('Desil 5 — Jiwa')
+                    TextEntry::make('total_desil1_sampai5_individu')
+                        ->label('Total Jiwa (Desil 1–5)')
                         ->numeric(),
                 ])
-                ->columns(5),
+                ->columns(2),
+
+            Section::make('Rincian per Desil')
+                ->description('Detail jumlah KK dan jiwa untuk masing-masing desil')
+                ->schema([
+                    TextEntry::make('total_desil1_keluarga')->label('Desil 1 — KK')->numeric(),
+                    TextEntry::make('total_desil2_keluarga')->label('Desil 2 — KK')->numeric(),
+                    TextEntry::make('total_desil3_keluarga')->label('Desil 3 — KK')->numeric(),
+                    TextEntry::make('total_desil4_keluarga')->label('Desil 4 — KK')->numeric(),
+                    TextEntry::make('total_desil5_keluarga')->label('Desil 5 — KK')->numeric(),
+                    TextEntry::make('total_desil1_individu')->label('Desil 1 — Jiwa')->numeric(),
+                    TextEntry::make('total_desil2_individu')->label('Desil 2 — Jiwa')->numeric(),
+                    TextEntry::make('total_desil3_individu')->label('Desil 3 — Jiwa')->numeric(),
+                    TextEntry::make('total_desil4_individu')->label('Desil 4 — Jiwa')->numeric(),
+                    TextEntry::make('total_desil5_individu')->label('Desil 5 — Jiwa')->numeric(),
+                ])
+                ->columns(5)
+                ->collapsed(),
         ]);
     }
 }

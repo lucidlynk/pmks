@@ -273,28 +273,29 @@ describe('Model DtsenRekap', function () {
         expect($rekap->jumlah_kelurahan)->toBe(2);
     });
 
-    it('calculates desil 1–5 totals correctly', function () {
+    it('calculates desil 1–5 totals per desil correctly', function () {
         $rekap = makeRekapWithDetails();
 
-        // Desil 1: Gerokgak(24+77) + Seririt(30+95)
-        expect($rekap->total_desil1_keluarga)->toBe(54);
-        expect($rekap->total_desil1_individu)->toBe(172);
+        expect($rekap->total_desil1_keluarga)->toBe(54);   // 24+30
+        expect($rekap->total_desil1_individu)->toBe(172);  // 77+95
+        expect($rekap->total_desil2_keluarga)->toBe(124);  // 54+70
+        expect($rekap->total_desil2_individu)->toBe(386);  // 166+220
+        expect($rekap->total_desil3_keluarga)->toBe(260);  // 120+140
+        expect($rekap->total_desil3_individu)->toBe(839);  // 389+450
+        expect($rekap->total_desil4_keluarga)->toBe(279);  // 129+150
+        expect($rekap->total_desil4_individu)->toBe(852);  // 392+460
+        expect($rekap->total_desil5_keluarga)->toBe(203);  // 93+110
+        expect($rekap->total_desil5_individu)->toBe(666);  // 306+360
+    });
 
-        // Desil 2: Gerokgak(54+166) + Seririt(70+220)
-        expect($rekap->total_desil2_keluarga)->toBe(124);
-        expect($rekap->total_desil2_individu)->toBe(386);
+    it('calculates total gabungan desil 1–5 (KK dan Jiwa)', function () {
+        $rekap = makeRekapWithDetails();
 
-        // Desil 3: Gerokgak(120+389) + Seririt(140+450)
-        expect($rekap->total_desil3_keluarga)->toBe(260);
-        expect($rekap->total_desil3_individu)->toBe(839);
+        // KK: 54+124+260+279+203 = 920
+        expect($rekap->total_desil1_sampai5_keluarga)->toBe(920);
 
-        // Desil 4: Gerokgak(129+392) + Seririt(150+460)
-        expect($rekap->total_desil4_keluarga)->toBe(279);
-        expect($rekap->total_desil4_individu)->toBe(852);
-
-        // Desil 5: Gerokgak(93+306) + Seririt(110+360)
-        expect($rekap->total_desil5_keluarga)->toBe(203);
-        expect($rekap->total_desil5_individu)->toBe(666);
+        // Jiwa: 172+386+839+852+666 = 2915
+        expect($rekap->total_desil1_sampai5_individu)->toBe(2915);
     });
 
     it('desil totals use single cached query', function () {
@@ -311,14 +312,14 @@ describe('Model DtsenRekap', function () {
         expect(count($queries))->toBe(1);
     });
 
-    it('view page shows rekap desil section', function () {
+    it('view page shows total desil 1-5 section', function () {
         $admin = makeUser(UserRole::ADMIN_DINSOS->value);
         $rekap = makeRekapWithDetails();
 
         actingAs($admin)
             ->get(route('filament.admin.resources.dtsen-rekaps.view', $rekap))
             ->assertOk()
-            ->assertSee('Rekap Desil');
+            ->assertSee('Total Desil');
     });
 });
 
