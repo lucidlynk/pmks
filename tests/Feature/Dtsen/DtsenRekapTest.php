@@ -272,6 +272,54 @@ describe('Model DtsenRekap', function () {
         expect($rekap->jumlah_kecamatan)->toBe(2);
         expect($rekap->jumlah_kelurahan)->toBe(2);
     });
+
+    it('calculates desil 1–5 totals correctly', function () {
+        $rekap = makeRekapWithDetails();
+
+        // Desil 1: Gerokgak(24+77) + Seririt(30+95)
+        expect($rekap->total_desil1_keluarga)->toBe(54);
+        expect($rekap->total_desil1_individu)->toBe(172);
+
+        // Desil 2: Gerokgak(54+166) + Seririt(70+220)
+        expect($rekap->total_desil2_keluarga)->toBe(124);
+        expect($rekap->total_desil2_individu)->toBe(386);
+
+        // Desil 3: Gerokgak(120+389) + Seririt(140+450)
+        expect($rekap->total_desil3_keluarga)->toBe(260);
+        expect($rekap->total_desil3_individu)->toBe(839);
+
+        // Desil 4: Gerokgak(129+392) + Seririt(150+460)
+        expect($rekap->total_desil4_keluarga)->toBe(279);
+        expect($rekap->total_desil4_individu)->toBe(852);
+
+        // Desil 5: Gerokgak(93+306) + Seririt(110+360)
+        expect($rekap->total_desil5_keluarga)->toBe(203);
+        expect($rekap->total_desil5_individu)->toBe(666);
+    });
+
+    it('desil totals use single cached query', function () {
+        $rekap = makeRekapWithDetails();
+
+        \Illuminate\Support\Facades\DB::enableQueryLog();
+        $_ = $rekap->total_desil1_keluarga;
+        $_ = $rekap->total_desil2_keluarga;
+        $_ = $rekap->total_desil3_individu;
+        $_ = $rekap->total_desil5_individu;
+        $queries = \Illuminate\Support\Facades\DB::getQueryLog();
+        \Illuminate\Support\Facades\DB::disableQueryLog();
+
+        expect(count($queries))->toBe(1);
+    });
+
+    it('view page shows rekap desil section', function () {
+        $admin = makeUser(UserRole::ADMIN_DINSOS->value);
+        $rekap = makeRekapWithDetails();
+
+        actingAs($admin)
+            ->get(route('filament.admin.resources.dtsen-rekaps.view', $rekap))
+            ->assertOk()
+            ->assertSee('Rekap Desil');
+    });
 });
 
 // ================================================================

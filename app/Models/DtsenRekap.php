@@ -76,6 +76,45 @@ class DtsenRekap extends Model
     }
 
     // ================================================================
+    // DESIL 1–5 TOTALS (1 query, cached per instance)
+    // ================================================================
+
+    private ?object $_desilTotals = null;
+
+    private function desilTotals(): object
+    {
+        if ($this->_desilTotals === null) {
+            $this->_desilTotals = $this->details()
+                ->selectRaw('
+                    COALESCE(SUM(desil1_keluarga), 0) AS d1_kk,
+                    COALESCE(SUM(desil1_individu),  0) AS d1_jiwa,
+                    COALESCE(SUM(desil2_keluarga), 0) AS d2_kk,
+                    COALESCE(SUM(desil2_individu),  0) AS d2_jiwa,
+                    COALESCE(SUM(desil3_keluarga), 0) AS d3_kk,
+                    COALESCE(SUM(desil3_individu),  0) AS d3_jiwa,
+                    COALESCE(SUM(desil4_keluarga), 0) AS d4_kk,
+                    COALESCE(SUM(desil4_individu),  0) AS d4_jiwa,
+                    COALESCE(SUM(desil5_keluarga), 0) AS d5_kk,
+                    COALESCE(SUM(desil5_individu),  0) AS d5_jiwa
+                ')
+                ->first();
+        }
+
+        return $this->_desilTotals;
+    }
+
+    public function getTotalDesil1KeluargaAttribute(): int { return (int) $this->desilTotals()->d1_kk; }
+    public function getTotalDesil1IndividuAttribute(): int  { return (int) $this->desilTotals()->d1_jiwa; }
+    public function getTotalDesil2KeluargaAttribute(): int { return (int) $this->desilTotals()->d2_kk; }
+    public function getTotalDesil2IndividuAttribute(): int  { return (int) $this->desilTotals()->d2_jiwa; }
+    public function getTotalDesil3KeluargaAttribute(): int { return (int) $this->desilTotals()->d3_kk; }
+    public function getTotalDesil3IndividuAttribute(): int  { return (int) $this->desilTotals()->d3_jiwa; }
+    public function getTotalDesil4KeluargaAttribute(): int { return (int) $this->desilTotals()->d4_kk; }
+    public function getTotalDesil4IndividuAttribute(): int  { return (int) $this->desilTotals()->d4_jiwa; }
+    public function getTotalDesil5KeluargaAttribute(): int { return (int) $this->desilTotals()->d5_kk; }
+    public function getTotalDesil5IndividuAttribute(): int  { return (int) $this->desilTotals()->d5_jiwa; }
+
+    // ================================================================
     // STATIC HELPERS
     // ================================================================
 
