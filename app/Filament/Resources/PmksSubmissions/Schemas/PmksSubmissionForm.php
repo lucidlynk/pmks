@@ -94,27 +94,34 @@ class PmksSubmissionForm
                 ->required()
                 ->searchable()
                 ->live()
-                ->options(function (callable $get) {
+                ->getSearchResultsUsing(function (string $search, callable $get) {
                     $user      = Auth::user();
                     $villageId = $user?->isOperatorDesa()
                         ? $user->village_id
                         : $get('village_id');
 
-                    if (!$villageId) return [];
+                    if (!$villageId || strlen($search) < 2) return [];
 
                     return Resident::active()
                         ->where('village_id', $villageId)
+                        ->where(fn ($q) => $q
+                            ->where('nik', 'like', "%{$search}%")
+                            ->orWhere('name', 'like', "%{$search}%"))
+                        ->limit(50)
                         ->get()
-                        ->mapWithKeys(fn ($r) => [
-                            $r->id => "{$r->nik} - {$r->name}"
-                        ]);
+                        ->mapWithKeys(fn ($r) => [$r->id => "{$r->nik} - {$r->name}"]);
+                })
+                ->getOptionLabelUsing(function ($value): ?string {
+                    if (!$value) return null;
+                    $r = Resident::find($value);
+                    return $r ? "{$r->nik} - {$r->name}" : null;
                 })
                 ->disabled(function (callable $get) {
                     $user = Auth::user();
                     if ($user?->isOperatorDesa()) return false;
                     return !$get('village_id');
                 })
-                ->placeholder('Cari NIK atau nama penduduk')
+                ->placeholder('Ketik min. 2 karakter NIK atau nama')
                 ->afterStateUpdated(fn (callable $set) => $set('category_id', null))
                 // ── SHORTCUT: tambah penduduk baru langsung dari form ──
                 ->createOptionForm(function (callable $get) {

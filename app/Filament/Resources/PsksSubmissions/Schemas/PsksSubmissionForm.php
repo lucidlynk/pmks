@@ -113,7 +113,7 @@ class PsksSubmissionForm
                 ->label('Pilih Subjek')
                 ->required()
                 ->searchable()
-                ->options(function (callable $get) {
+                ->getSearchResultsUsing(function (string $search, callable $get) {
                     $user        = Auth::user();
                     $subjectType = $get('subject_type');
                     $villageId   = $user?->isOperatorDesa()
@@ -123,17 +123,31 @@ class PsksSubmissionForm
                     if (!$subjectType || !$villageId) return [];
 
                     if ($subjectType === 'person') {
+                        if (strlen($search) < 2) return [];
                         return Resident::active()
                             ->where('village_id', $villageId)
+                            ->where(fn ($q) => $q
+                                ->where('nik', 'like', "%{$search}%")
+                                ->orWhere('name', 'like', "%{$search}%"))
+                            ->limit(50)
                             ->get()
-                            ->mapWithKeys(fn ($r) => [
-                                $r->id => "{$r->nik} - {$r->name}"
-                            ]);
+                            ->mapWithKeys(fn ($r) => [$r->id => "{$r->nik} - {$r->name}"]);
                     }
 
                     return Institution::active()
                         ->where('village_id', $villageId)
+                        ->when($search, fn ($q) => $q->where('name', 'like', "%{$search}%"))
+                        ->limit(50)
                         ->pluck('name', 'id');
+                })
+                ->getOptionLabelUsing(function ($value, callable $get): ?string {
+                    if (!$value) return null;
+                    $subjectType = $get('subject_type');
+                    if ($subjectType === 'institution') {
+                        return Institution::find($value)?->name;
+                    }
+                    $r = Resident::find($value);
+                    return $r ? "{$r->nik} - {$r->name}" : null;
                 })
                 ->disabled(function (callable $get) {
                     $user = Auth::user();
@@ -141,7 +155,7 @@ class PsksSubmissionForm
                     if ($user?->isOperatorDesa()) return false;
                     return !$get('village_id');
                 })
-                ->placeholder('Pilih kategori dan desa dulu')
+                ->placeholder('Ketik min. 2 karakter untuk cari penduduk')
                 ->createOptionForm(function (callable $get) {
                     $subjectType = $get('subject_type');
                     $user        = Auth::user();

@@ -51,7 +51,8 @@ class ResidentResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery()
-            ->withoutGlobalScopes([SoftDeletingScope::class]);
+            ->withoutGlobalScopes([SoftDeletingScope::class])
+            ->with(['village.kecamatan', 'familyCard']);
         $user = auth()->user();
         if ($user?->isOperatorDesa() && $user->village_id) {
             $query->where('village_id', $user->village_id);

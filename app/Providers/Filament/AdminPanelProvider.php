@@ -30,6 +30,7 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login(Login::class)
             ->databaseNotifications()
+            ->databaseNotificationsPolling('5m')
             ->colors([
                 'primary' => Color::Blue,
             ])
