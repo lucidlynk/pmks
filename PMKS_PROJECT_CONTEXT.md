@@ -207,14 +207,16 @@ Shortcut createOption di Select:
 
 ---
 
-#### Bug Kritis #3 — File Sensitif Terekspos di Web Root ⏳ BELUM DIKERJAKAN
+#### Bug Kritis #3 — File Sensitif Terekspos di Web Root ✅ SELESAI
 
-**File:** `public/penyandingan_temuan_bpkp_tw2_2026.xlsx`
-**File:** `public/nik_nokk_temuan_bpkp_dukcapil2022.xlsx`
+**File:** `public/penyandingan_temuan_bpkp_tw2_2026.xlsx` — **sudah dihapus**
+**File:** `public/nik_nokk_temuan_bpkp_dukcapil2022.xlsx` — **sudah dihapus**
 
-**Masalah:** Dua file Excel hasil analisis BPKP berada di `public/` dan dapat diakses **tanpa autentikasi** via URL langsung. File kedua berisi data NIK/No. KK warga.
+**Masalah:** Dua file Excel hasil analisis BPKP berada di `public/` dan dapat diakses tanpa autentikasi via URL langsung. File kedua berisi data NIK/No. KK warga.
 
-**Rencana fix:** Pindahkan ke `storage/app/private/` dan hapus dari `public/`.
+**Solusi:** File dihapus langsung dari `public/` di server production. URL kini mengembalikan 404. File tidak di-track git jadi tidak perlu commit — cukup hapus dari filesystem production.
+
+**Catatan:** File ini tidak ada backup di server. Jika diperlukan lagi, simpan di luar web root (misal `/DATA/Documents/`) bukan di `public/`.
 
 ---
 
