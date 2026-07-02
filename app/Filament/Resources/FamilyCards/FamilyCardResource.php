@@ -49,8 +49,7 @@ class FamilyCardResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $query = parent::getEloquentQuery()
-            ->with(['village.kecamatan']);
+        $query = parent::getEloquentQuery();
         $user  = auth()->user();
         if ($user?->isOperatorDesa() && $user->village_id) {
             $query->where('village_id', $user->village_id);

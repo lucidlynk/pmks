@@ -108,10 +108,14 @@ class AppSettingsPage extends Page
 
     public function save(): void
     {
+        \Log::info('AppSettings save() called');
         $data = $this->settingsForm->getState();
+        \Log::info('getState done', ['keys' => array_keys($data)]);
 
         AppSetting::set(AppSetting::APP_NAME,        $data['app_name']);
+        \Log::info('app_name saved');
         AppSetting::set(AppSetting::APP_DESCRIPTION, $data['app_description'] ?? '');
+        \Log::info('app_description saved');
 
         if (!empty($data['app_logo'])) {
             AppSetting::set(AppSetting::APP_LOGO, $data['app_logo']);
@@ -131,6 +135,7 @@ class AppSettingsPage extends Page
             AppSetting::forget(AppSetting::PEMKAB_LOGO);
         }
 
+        \Log::info('sending notification');
         session()->flash('success', 'Pengaturan berhasil disimpan');
         $this->redirect(request()->header('Referer') ?? static::getUrl(), navigate: false);
     }

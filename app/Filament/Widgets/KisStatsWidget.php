@@ -5,7 +5,6 @@ namespace App\Filament\Widgets;
 use App\Models\KisRekap;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
-use Illuminate\Support\Facades\Cache;
 
 class KisStatsWidget extends BaseWidget
 {
@@ -13,33 +12,13 @@ class KisStatsWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $data = Cache::remember('widget_kis_stats', 300, function () {
-            $latest = KisRekap::query()
-                ->orderByDesc('periode_tahun')
-                ->orderByDesc('periode_bulan')
-                ->first();
+        // Ambil data bulan terakhir yang tersedia
+        $latest = KisRekap::query()
+            ->orderByDesc('periode_tahun')
+            ->orderByDesc('periode_bulan')
+            ->first();
 
-            if (!$latest) {
-                return null;
-            }
-
-            $tren = KisRekap::query()
-                ->orderByDesc('periode_tahun')
-                ->orderByDesc('periode_bulan')
-                ->limit(6)
-                ->get()
-                ->reverse()
-                ->values();
-
-            return [
-                'latest'      => $latest,
-                'trenTotal'   => $tren->pluck('total')->toArray(),
-                'trenPbiApbd' => $tren->pluck('pbi_apbd')->toArray(),
-                'trenPbiApbn' => $tren->pluck('pbi_apbn')->toArray(),
-            ];
-        });
-
-        if (!$data) {
+        if (!$latest) {
             return [
                 Stat::make('Data KIS', 'Belum ada data')
                     ->description('Silakan input rekap KIS terlebih dahulu')
@@ -47,11 +26,6 @@ class KisStatsWidget extends BaseWidget
                     ->icon('heroicon-o-heart'),
             ];
         }
-
-        $latest      = $data['latest'];
-        $trenTotal   = $data['trenTotal'];
-        $trenPbiApbd = $data['trenPbiApbd'];
-        $trenPbiApbn = $data['trenPbiApbn'];
 
         $bulanLabel = [
             1 => 'Jan', 2 => 'Feb', 3 => 'Mar', 4 => 'Apr',
@@ -61,6 +35,19 @@ class KisStatsWidget extends BaseWidget
 
         $periode = ($bulanLabel[$latest->periode_bulan] ?? $latest->periode_bulan)
                  . ' ' . $latest->periode_tahun;
+
+        // Tren 6 bulan terakhir untuk chart
+        $tren = KisRekap::query()
+            ->orderByDesc('periode_tahun')
+            ->orderByDesc('periode_bulan')
+            ->limit(6)
+            ->get()
+            ->reverse()
+            ->values();
+
+        $trenTotal   = $tren->pluck('total')->toArray();
+        $trenPbiApbd = $tren->pluck('pbi_apbd')->toArray();
+        $trenPbiApbn = $tren->pluck('pbi_apbn')->toArray();
 
         return [
             Stat::make('Total Peserta KIS', number_format($latest->total))
