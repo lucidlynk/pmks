@@ -1,7 +1,7 @@
 # PMKS PROJECT CONTEXT
 > Dokumen ini dibuat untuk memudahkan kolaborasi dengan AI manapun.
 > Upload dokumen ini di awal sesi agar AI langsung paham konteks penuh proyek.
-> Terakhir diperbarui: Juli 2026 (sesi 12 — Analisis Bug & Fix BansosParserJob)
+> Terakhir diperbarui: Juli 2026 (sesi 12 — Analisis Bug, Fix Bug #1/#2/#3)
 
 ---
 
@@ -168,9 +168,9 @@ Shortcut createOption di Select:
 
 ### Sesi 12 — LIVE PRODUCTION
 
-#### Analisis Bug Menyeluruh + Fix BansosParserJob — commit 2bdd45e
+#### Analisis Bug Menyeluruh + Fix Bug Kritis #1, #2, #3
 
-**Latar belakang:** Dilakukan audit bug menyeluruh pada seluruh codebase production (Jobs, Models, Policies, Exports, API, Filament). Ditemukan 10 bug (3 kritis, 4 sedang, 3 minor). Sesi ini menyelesaikan Bug Kritis #1.
+**Latar belakang:** Dilakukan audit bug menyeluruh pada seluruh codebase production (Jobs, Models, Policies, Exports, API, Filament). Ditemukan 10 bug (3 kritis, 4 sedang, 3 minor). Sesi ini menyelesaikan semua Bug Kritis (#1, #2, #3).
 
 ---
 
@@ -196,14 +196,21 @@ Shortcut createOption di Select:
 
 ---
 
-#### Bug Kritis #2 — Race Condition `Resident::create()` di Chunk Paralel ⏳ BELUM DIKERJAKAN
+#### Bug Kritis #2 — Race Condition `Resident::create()` di Chunk Paralel ✅ SELESAI — commit 234eda5
 
-**File:** `app/Jobs/Pmks/PmksImportChunkJob.php` baris 192–203
-**File:** `app/Jobs/Psks/PsksImportChunkJob.php` baris 262–273
+**File:** `app/Jobs/Pmks/PmksImportChunkJob.php`
+**File:** `app/Jobs/Psks/PsksImportChunkJob.php`
 
 **Masalah:** Pola `where('nik')->first()` + `create()` dijalankan di banyak chunk paralel. Dua chunk dengan NIK yang sama bisa lolos check `first()=null` bersamaan → `Duplicate entry` → baris valid tercatat sebagai "Error tidak terduga" → di-retry 2x → semua gagal.
 
-**Rencana fix:** Ganti dengan `firstOrCreate()` — atomic, aman untuk parallel execution.
+**Solusi:** Ganti dengan `firstOrCreate()` + catch `UniqueConstraintViolationException` sebagai fallback. Jika race terjadi dan INSERT gagal, fallback langsung `where('nik')->firstOrFail()` untuk mengambil record yang sudah dibuat chunk lain.
+
+| File | Perubahan |
+|---|---|
+| `app/Jobs/Pmks/PmksImportChunkJob.php` | `use UniqueConstraintViolationException`, ganti `where()->first()` + `create()` dengan `firstOrCreate()` + catch |
+| `app/Jobs/Psks/PsksImportChunkJob.php` | Sama |
+
+**Total test:** 268/268 pass (tidak ada perubahan jumlah test — logika chunk job tidak bisa di-test langsung karena `DB::reconnect()`).
 
 ---
 
@@ -526,8 +533,8 @@ Rate limit: 60 request/menit per IP
 | Rekap Bansos PKH & Sembako per desa | Sedang | SELESAI sesi 10 |
 | Re-upload DTSEN rekap stuck (SoftDeletes + unique constraint) | Tinggi | SELESAI sesi 11 |
 | **[BUG #1]** Data loss BansosParserJob saat re-upload file bermasalah | Kritis | SELESAI sesi 12 — commit 2bdd45e |
-| **[BUG #2]** Race condition `Resident::create()` di chunk paralel (PMKS/PSKS) | Kritis | **Belum** — fix: ganti dengan `firstOrCreate()` |
-| **[BUG #3]** File sensitif BPKP terekspos di `public/` web root | Kritis | **Belum** — pindah ke `storage/app/private/` |
+| **[BUG #2]** Race condition `Resident::create()` di chunk paralel (PMKS/PSKS) | Kritis | SELESAI sesi 12 — commit 234eda5 |
+| **[BUG #3]** File sensitif BPKP terekspos di `public/` web root | Kritis | SELESAI sesi 12 — hapus langsung dari filesystem production |
 | **[BUG #4]** `error_summary` lost update di chunk paralel (race condition) | Sedang | Belum |
 | **[BUG #5]** Parameter `?status=` API tidak divalidasi | Sedang | Belum |
 | **[BUG #6]** `DetectStuckImports` hanya cover KIS, tidak cover Bansos/PMKS/PSKS | Sedang | Belum |
@@ -633,17 +640,19 @@ Generate repomix:
 cd /DATA/coding/laravel/projects/pmks-dev && npx repomix --output repomix-output-dev.xml
 ```
 
-Status saat ini: **268/268 test pass**. Commit terakhir sesi 12: 2bdd45e — live production.
+Status saat ini: **268/268 test pass**. Commit terakhir sesi 12: 234eda5 (Bug #2) — live production.
 Sesi 6, 7, 8, 9, 10, 11 & 12 sudah di-deploy ke pmks-app.
-**chmod pmks/psks-imports:** Tidak perlu dijalankan. Direktori belum pernah dibuat di production, dan `config/filesystems.php` sudah mengatur `dir.private = 0755` sehingga direktori baru otomatis dibuat dengan permission yang benar.
+**chmod pmks/psks-imports:** Tidak perlu dijalankan. Direktori belum pernah dibuat di production, dan `config/filesystems.php` sudah mengatur `dir.private = 0755`.
 **WAJIB setiap deploy:** `sudo systemctl restart php8.3-fpm` karena OPcache `validate_timestamps=Off`.
 
-**Bug yang masih perlu dikerjakan (prioritas):**
-1. 🔴 Bug #3 — File BPKP di `public/` (pindah hari ini)
-2. 🔴 Bug #2 — Race condition `firstOrCreate()` di PMKS/PSKS chunk job
-3. 🟡 Bug #4 — `error_summary` race condition di semua chunk job
-4. 🟡 Bug #6 — Perluas `DetectStuckImports` ke Bansos/PMKS/PSKS
-5. 🟡 Bug #7 — Tombol Delete visible sesuai policy
+**Semua Bug Kritis sudah selesai.** Bug tersisa (belum dikerjakan):**
+1. 🟡 Bug #4 — `error_summary` race condition di BansosChunkJob/PmksImportChunkJob/PsksImportChunkJob
+2. 🟡 Bug #6 — Perluas `DetectStuckImports` ke Bansos/PMKS/PSKS
+3. 🟡 Bug #7 — Tombol Delete BansosImport visible sesuai policy (`can('delete', $record)`)
+4. 🟡 Bug #5 — Validasi parameter `?status=` di API StatistikController
+5. 🔵 Bug #8 — AuditLog `user_id = null` di BulkApproveBatchJob
+6. 🔵 Bug #9 — Validasi batas tahun API (1900–9999 diterima)
+7. 🔵 Bug #10 — Widget dashboard filter tahun hardcode `now()->year`
 
 Detail lengkap semua bug: lihat bagian **Sesi 12** di atas atau file `/DATA/Documents/Analisis_Bug_PMKS_App.md`.
 
