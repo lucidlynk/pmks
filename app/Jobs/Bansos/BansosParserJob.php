@@ -44,8 +44,7 @@ class BansosParserJob implements ShouldQueue
         ]);
 
         try {
-            // Hapus data lama untuk kombinasi jenis + status + triwulan + tahun yang sama
-            // Ini handle kasus upload ulang / koreksi data dari Kemensos
+            // Cari import lama yang berpotensi digantikan (belum dihapus dulu)
             $oldImports = BansosImport::where('jenis_bansos', $import->jenis_bansos)
                 ->where('status_bansos', $import->status_bansos)
                 ->where('triwulan', $import->triwulan)
@@ -54,14 +53,8 @@ class BansosParserJob implements ShouldQueue
                 ->where('status', 'done')
                 ->get();
 
-            foreach ($oldImports as $old) {
-                BansosMember::where('import_id', $old->id)->delete();
-                $old->delete();
-            }
-
-            DB::reconnect();
-
-            // Baca CSV
+            // Baca dan validasi CSV DULU sebelum hapus data lama
+            // Mencegah data loss jika file baru gagal dibuka atau kosong
             $fullPath = Storage::disk('local')->path($import->file_path);
             $handle   = fopen($fullPath, 'r');
 
@@ -108,6 +101,14 @@ class BansosParserJob implements ShouldQueue
                 ]);
                 return;
             }
+
+            // File valid dan ada data — baru hapus data lama (upload ulang / koreksi dari Kemensos)
+            foreach ($oldImports as $old) {
+                BansosMember::where('import_id', $old->id)->delete();
+                $old->delete();
+            }
+
+            DB::reconnect();
 
             // Dispatch per 50 chunks untuk hindari MySQL timeout
             $chunkGroups = array_chunk($chunks, 50);
