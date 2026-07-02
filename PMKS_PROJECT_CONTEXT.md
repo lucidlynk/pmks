@@ -1,7 +1,7 @@
 # PMKS PROJECT CONTEXT
 > Dokumen ini dibuat untuk memudahkan kolaborasi dengan AI manapun.
 > Upload dokumen ini di awal sesi agar AI langsung paham konteks penuh proyek.
-> Terakhir diperbarui: Juni 2026 (sesi 11 — Fix Re-upload DTSEN Rekap)
+> Terakhir diperbarui: Juli 2026 (sesi 12 — Analisis Bug & Fix BansosParserJob)
 
 ---
 
@@ -165,6 +165,126 @@ Shortcut createOption di Select:
 - KIS: Rekap Agregat, Upload CSV PBI APBD background, Cek Kepesertaan per NIK
 - Bansos: Import CSV PKH & Sembako
 - Surat Dinas, API Publik Sanctum (8 endpoint), Dashboard Publik
+
+### Sesi 12 — LIVE PRODUCTION
+
+#### Analisis Bug Menyeluruh + Fix BansosParserJob — commit 2bdd45e
+
+**Latar belakang:** Dilakukan audit bug menyeluruh pada seluruh codebase production (Jobs, Models, Policies, Exports, API, Filament). Ditemukan 10 bug (3 kritis, 4 sedang, 3 minor). Sesi ini menyelesaikan Bug Kritis #1.
+
+---
+
+#### Bug Kritis #1 — Data Loss pada BansosParserJob saat Re-upload ✅ SELESAI
+
+**File:** `app/Jobs/Bansos/BansosParserJob.php`
+
+**Masalah:** BansosParserJob menghapus data lama (BansosMember + BansosImport lama) **sebelum** membuka dan memvalidasi file CSV baru. Jika `fopen()` gagal atau file CSV kosong/corrupt, data lama sudah terhapus permanen — tidak ada data sama sekali.
+
+**Skenario nyata:** Upload ulang koreksi data PKH `sudah_transaksi` TW2 2026 (33.250 baris se-Kabupaten) → file baru ternyata kosong → semua data hilang permanen.
+
+**Solusi:** Pindahkan operasi DELETE ke **setelah** file berhasil diparsing dan dipastikan ada data (chunks tidak kosong). Data lama hanya dihapus jika file baru terbukti valid.
+
+| File | Perubahan |
+|---|---|
+| `app/Jobs/Bansos/BansosParserJob.php` | Hapus data lama dipindah ke setelah validasi file & chunks |
+| `tests/Feature/Bansos/BansosImportTest.php` | +2 test re-upload: file valid (DELETE dikonfirmasi via `DB::listen()`) + file kosong (data lama tetap utuh) |
+
+**Catatan teknis testing:**
+`DB::reconnect()` di dalam job membatalkan test transaction milik `RefreshDatabase`. Solusi: gunakan `DB::listen()` (bekerja di level application event dispatcher, bukan per-koneksi) untuk memverifikasi DELETE query dieksekusi sebelum reconnect.
+
+**Total test:** 268/268 pass (naik dari 262).
+
+---
+
+#### Bug Kritis #2 — Race Condition `Resident::create()` di Chunk Paralel ⏳ BELUM DIKERJAKAN
+
+**File:** `app/Jobs/Pmks/PmksImportChunkJob.php` baris 192–203
+**File:** `app/Jobs/Psks/PsksImportChunkJob.php` baris 262–273
+
+**Masalah:** Pola `where('nik')->first()` + `create()` dijalankan di banyak chunk paralel. Dua chunk dengan NIK yang sama bisa lolos check `first()=null` bersamaan → `Duplicate entry` → baris valid tercatat sebagai "Error tidak terduga" → di-retry 2x → semua gagal.
+
+**Rencana fix:** Ganti dengan `firstOrCreate()` — atomic, aman untuk parallel execution.
+
+---
+
+#### Bug Kritis #3 — File Sensitif Terekspos di Web Root ⏳ BELUM DIKERJAKAN
+
+**File:** `public/penyandingan_temuan_bpkp_tw2_2026.xlsx`
+**File:** `public/nik_nokk_temuan_bpkp_dukcapil2022.xlsx`
+
+**Masalah:** Dua file Excel hasil analisis BPKP berada di `public/` dan dapat diakses **tanpa autentikasi** via URL langsung. File kedua berisi data NIK/No. KK warga.
+
+**Rencana fix:** Pindahkan ke `storage/app/private/` dan hapus dari `public/`.
+
+---
+
+#### Bug Sedang #4 — `error_summary` Lost Update di Chunk Paralel ⏳ BELUM DIKERJAKAN
+
+**File:** `app/Jobs/Bansos/BansosChunkJob.php` baris 150–152
+**File:** `app/Jobs/Pmks/PmksImportChunkJob.php` baris 273–275
+**File:** `app/Jobs/Psks/PsksImportChunkJob.php` baris 201–203
+
+**Masalah:** Pola `$import->fresh()->error_summary` → `array_merge` → `update()` berjalan paralel. Dua chunk bisa saling overwrite error masing-masing → error log tidak lengkap.
+
+**Rencana fix:** Gunakan raw query `JSON_MERGE_PATCH` atau simpan error per-chunk di tabel terpisah.
+
+---
+
+#### Bug Sedang #5 — API: Parameter `status` Tidak Divalidasi ⏳ BELUM DIKERJAKAN
+
+**File:** `app/Http/Controllers/Api/StatistikController.php` baris 85, 126
+
+**Masalah:** `?status=xyz` diteruskan langsung ke WHERE clause. Tidak ada SQL injection (parameterized), tapi response `total: 0` tanpa error membingungkan consumer API.
+
+**Rencana fix:** Validasi dengan `in_array($status, ['draft','submitted','approved','rejected','semua'])`.
+
+---
+
+#### Bug Sedang #6 — `DetectStuckImports` Hanya Cover KIS ⏳ BELUM DIKERJAKAN
+
+**File:** `app/Console/Commands/DetectStuckImports.php`
+
+**Masalah:** Command dijadwalkan tiap 15 menit hanya mendeteksi import KIS yang stuck. Import Bansos, PMKS, PSKS yang stuck tidak otomatis terdeteksi.
+
+**Rencana fix:** Perluas command untuk cover `BansosImport`, `PmksImport`, `PsksImport`.
+
+---
+
+#### Bug Sedang #7 — Tombol Delete Terlihat Semua Role ⏳ BELUM DIKERJAKAN
+
+**File:** `app/Filament/Resources/BansosImports/Pages/ViewBansosImport.php` baris 117–118
+
+**Masalah:** `->visible(fn () => $this->record->isFinished())` tidak cek role. Tombol Delete terlihat oleh semua role tapi klik menghasilkan 403 — UX menyesatkan.
+
+**Rencana fix:** Ubah ke `->visible(fn () => auth()->user()->can('delete', $this->record))`.
+
+---
+
+#### Bug Minor #8 — AuditLog `user_id = null` di Queue Worker ⏳ BELUM DIKERJAKAN
+
+**File:** `app/Jobs/BulkApproveBatchJob.php` baris 56–64
+
+**Masalah:** `Auth::id()` di dalam queue worker selalu null → audit log bulk approve tidak tercatat siapa yang mengeksekusi.
+
+**Rencana fix:** Pass `$userId` sebagai parameter constructor ke job, bukan ambil dari `Auth::id()`.
+
+---
+
+#### Bug Minor #9 — Validasi `tahun` API Tidak Ada Batas ⏳ BELUM DIKERJAKAN
+
+**File:** `app/Http/Controllers/Api/StatistikController.php` baris 20
+
+**Masalah:** `?tahun=1900` atau `?tahun=9999` diterima tanpa error — response selalu kosong tanpa feedback.
+
+**Rencana fix:** Validasi `$year >= 2000 && $year <= 2099`, return 422 jika tidak valid.
+
+---
+
+#### Bug Minor #10 — Widget Dashboard Filter Tahun Hardcode ⏳ BELUM DIKERJAKAN
+
+Dashboard widget menggunakan `now()->year` hardcode. Tidak ada filter tahun untuk user. Sudah dicatat sejak Technical Debt sebelumnya.
+
+---
 
 ### Sesi 11 — LIVE PRODUCTION
 
@@ -396,8 +516,6 @@ Rate limit: 60 request/menit per IP
 | static $no di Export PMKS & PSKS | Sedang | SELESAI sesi 5 |
 | N+1 di StatistikController | Sedang | SELESAI sesi 5 |
 | Import CSV PMKS & PSKS | Tinggi | SELESAI sesi 6 |
-| Widget filter tahun hardcode now()->year | Rendah | Belum |
-| HasRoleAccess trait dead code | Rendah | Belum |
 | chmod 755 pmks-imports & psks-imports di production | Tinggi | TIDAK PERLU — direktori belum pernah dibuat, config 0755 sudah aktif |
 | Akses Import Bansos per role | Sedang | SELESAI sesi 7 |
 | Import PMKS/PSKS mode Seluruh Kabupaten | Tinggi | SELESAI sesi 8 |
@@ -405,6 +523,17 @@ Rate limit: 60 request/menit per IP
 | Download Excel Permohonan DTSEN | Sedang | SELESAI sesi 9 |
 | Rekap Bansos PKH & Sembako per desa | Sedang | SELESAI sesi 10 |
 | Re-upload DTSEN rekap stuck (SoftDeletes + unique constraint) | Tinggi | SELESAI sesi 11 |
+| **[BUG #1]** Data loss BansosParserJob saat re-upload file bermasalah | Kritis | SELESAI sesi 12 — commit 2bdd45e |
+| **[BUG #2]** Race condition `Resident::create()` di chunk paralel (PMKS/PSKS) | Kritis | **Belum** — fix: ganti dengan `firstOrCreate()` |
+| **[BUG #3]** File sensitif BPKP terekspos di `public/` web root | Kritis | **Belum** — pindah ke `storage/app/private/` |
+| **[BUG #4]** `error_summary` lost update di chunk paralel (race condition) | Sedang | Belum |
+| **[BUG #5]** Parameter `?status=` API tidak divalidasi | Sedang | Belum |
+| **[BUG #6]** `DetectStuckImports` hanya cover KIS, tidak cover Bansos/PMKS/PSKS | Sedang | Belum |
+| **[BUG #7]** Tombol Delete BansosImport terlihat semua role (UX menyesatkan) | Sedang | Belum |
+| **[BUG #8]** AuditLog `user_id = null` di BulkApproveBatchJob | Minor | Belum |
+| **[BUG #9]** Validasi tahun API tidak ada batas (1900–9999 diterima) | Minor | Belum |
+| **[BUG #10]** Widget dashboard filter tahun hardcode `now()->year` | Minor | Belum |
+| HasRoleAccess trait dead code | Rendah | Belum |
 
 ---
 
@@ -476,7 +605,7 @@ penggunaan_import_pmks_psks.md                     (panduan user)
 ```bash
 # DEVELOPMENT
 cd /DATA/coding/laravel/projects/pmks-dev
-php artisan test                          # full suite (262 test)
+php artisan test                          # full suite (268 test)
 php artisan test tests/Feature/Api/       # test API saja
 php artisan test tests/Feature/Exports/   # test export saja
 
@@ -502,14 +631,23 @@ Generate repomix:
 cd /DATA/coding/laravel/projects/pmks-dev && npx repomix --output repomix-output-dev.xml
 ```
 
-Status saat ini: 262/262 test pass. Commit terakhir sesi 11: bc60f66 — live production.
-Sesi 6, 7, 8, 9, 10 & 11 sudah di-deploy ke pmks-app.
+Status saat ini: **268/268 test pass**. Commit terakhir sesi 12: 2bdd45e — live production.
+Sesi 6, 7, 8, 9, 10, 11 & 12 sudah di-deploy ke pmks-app.
 **chmod pmks/psks-imports:** Tidak perlu dijalankan. Direktori belum pernah dibuat di production, dan `config/filesystems.php` sudah mengatur `dir.private = 0755` sehingga direktori baru otomatis dibuat dengan permission yang benar.
 **WAJIB setiap deploy:** `sudo systemctl restart php8.3-fpm` karena OPcache `validate_timestamps=Off`.
 
+**Bug yang masih perlu dikerjakan (prioritas):**
+1. 🔴 Bug #3 — File BPKP di `public/` (pindah hari ini)
+2. 🔴 Bug #2 — Race condition `firstOrCreate()` di PMKS/PSKS chunk job
+3. 🟡 Bug #4 — `error_summary` race condition di semua chunk job
+4. 🟡 Bug #6 — Perluas `DetectStuckImports` ke Bansos/PMKS/PSKS
+5. 🟡 Bug #7 — Tombol Delete visible sesuai policy
+
+Detail lengkap semua bug: lihat bagian **Sesi 12** di atas atau file `/DATA/Documents/Analisis_Bug_PMKS_App.md`.
+
 ---
 
-*Di-generate dari sesi kolaborasi developer + Claude (Anthropic), Juni 2026.*
+*Di-generate dari sesi kolaborasi developer + Claude (Anthropic), Juni–Juli 2026.*
 
 ---
 
