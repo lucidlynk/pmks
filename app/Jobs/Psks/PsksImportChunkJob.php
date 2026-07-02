@@ -17,6 +17,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -259,18 +260,22 @@ class PsksImportChunkJob implements ShouldQueue
             return ['person', null, "Baris {$rowNum} (NIK: {$nik}): Jenis kelamin harus L atau P, ditemukan '{$jenisKelamin}'"];
         }
 
-        $resident = Resident::where('nik', $nik)->first();
-
-        if (!$resident) {
-            $resident = Resident::create([
-                'village_id'  => $villageId,
-                'nik'         => $nik,
-                'name'        => $nama,
-                'birth_place' => '-',
-                'birth_date'  => $birthDate,
-                'gender'      => $jenisKelamin ?: null,
-                'is_active'   => true,
-            ]);
+        // firstOrCreate + catch UniqueConstraintViolationException untuk handle
+        // race condition antar chunk paralel yang memproses NIK sama bersamaan
+        try {
+            $resident = Resident::firstOrCreate(
+                ['nik' => $nik],
+                [
+                    'village_id'  => $villageId,
+                    'name'        => $nama,
+                    'birth_place' => '-',
+                    'birth_date'  => $birthDate,
+                    'gender'      => $jenisKelamin ?: null,
+                    'is_active'   => true,
+                ]
+            );
+        } catch (UniqueConstraintViolationException) {
+            $resident = Resident::where('nik', $nik)->firstOrFail();
         }
 
         return ['person', $resident, null];
